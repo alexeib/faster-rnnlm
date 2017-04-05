@@ -72,7 +72,7 @@ public:
             const Real *hidden, const MaxEnt *maxent) const;
 
     std::vector<WordIndex>
-    DiverseCandidates(int target_number, const uint64_t *feature_hashes, int maxent_order, bool dynamic_maxent_prunning,
+    DiverseCandidates(int target_number, const uint64_t* feature_hashes, int maxent_order, bool dynamic_maxent_prunning,
                       const Real *hidden, const MaxEnt *maxent) const;
 
     // Sample a word given maxent and hidden layers
