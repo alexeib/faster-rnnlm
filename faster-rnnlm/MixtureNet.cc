@@ -21,7 +21,7 @@ void split(const std::string& s, char delim, Out result)
     }
 }
 
-std::vector<WordIndex> MixtureNet::GetWids(std::string& sentence) const
+std::vector<WordIndex> MixtureNet::GetWids(const std::string& sentence) const
 {
     std::vector<std::string> words;
     split(sentence, ' ', std::back_inserter(words));
@@ -55,21 +55,27 @@ Real getWeightedProb(const NetData& nd, const std::vector<WordIndex> wids, int p
 
     uint64_t ngram_hashes[MAX_NGRAM_ORDER];
     int maxent_present = CalculateMaxentHashIndices(nd.nnet, wids.data(), pos, ngram_hashes);
-    return pow(10., nd.nnet->softmax_layer->CalculateLog10Probability(
+    auto prob = nd.nnet->softmax_layer->CalculateLog10Probability(
             wids[pos], ngram_hashes, maxent_present, dynamicMaxentPruning,
-            output.row(pos-1).data(), &nd.nnet->maxent_layer));
+            output.row(pos-1).data(), &nd.nnet->maxent_layer);
+    return prob*weight;
 }
 
-Real MixtureNet::Log10WordProbability(std::string& sentence, int wordPos)
+Real MixtureNet::Log10WordProbability(const std::string& sentence, int wordPos)
 {
     auto wids = GetWids(sentence);
     return Log10WordProbability(wids, wordPos);
 }
 
-Real MixtureNet::Log10WordProbability(std::vector<WordIndex>& wids, int wordPos)
+Real MixtureNet::Log10WordProbability(const std::vector<WordIndex>& wids, int wordPos)
 {
-    std::vector<WordIndex> reverseWids(wids.rbegin(), wids.rend());
-    auto forwardProb = getWeightedProb(forward_, wids, wordPos, kDynamicMaxentPruning);
-    auto reverseProb = getWeightedProb(reverse_, reverseWids, wids.size()-1-wordPos, kDynamicMaxentPruning);
+    std::vector<WordIndex> paddedWids;
+    paddedWids.push_back(0);
+    paddedWids.insert(paddedWids.end(), wids.begin(), wids.end());
+    paddedWids.push_back(0);
+
+    std::vector<WordIndex> reverseWids(paddedWids.rbegin(), paddedWids.rend());
+    auto forwardProb = getWeightedProb(forward_, paddedWids, wordPos+1, kDynamicMaxentPruning);
+    auto reverseProb = getWeightedProb(reverse_, reverseWids, wids.size()-wordPos, kDynamicMaxentPruning);
     return reverseProb+forwardProb;
 }

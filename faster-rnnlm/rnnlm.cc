@@ -203,6 +203,41 @@ Real EvaluateLM(NNet* nnet, const std::string& filename, bool print_logprobs, bo
     return entropy;
 }
 
+Real EvaluateLM(MixtureNet& mn, const std::string& filename)
+{
+    bool kAutoInsertUnk = (kOOVPolicy==kConvertToUnk);
+    SentenceReader reader(mn.GetVocabulary(), filename, false, kAutoInsertUnk);
+    Real logprob_sum = 0;
+    uint64_t n_words = 0;
+
+    std::vector<Real> logprob_per_pos;
+    while (reader.Read()) {
+        if (reader.HasOOVWords() && kOOVPolicy==kSkipSentence) {
+            continue;
+        }
+
+        const WordIndex* sen = reader.sentence();
+        int seq_length = reader.sentence_length();
+        std::vector<WordIndex> wids;
+        for(int i = 1;i<seq_length;i++)
+        {
+            wids.push_back(sen[i]);
+        }
+
+        Real sen_logprob = 0.0;
+
+        for (int target = 0; target < wids.size(); ++target) {
+            const Real logprob = mn.Log10WordProbability(wids, target);
+            sen_logprob -= logprob;
+        }
+        n_words += wids.size();
+        logprob_sum += sen_logprob;
+    }
+
+    Real entropy = logprob_sum/log10(2)/n_words;
+    return entropy;
+}
+
 void* RunThread(void* ptr)
 {
     TrainThreadTask& task = *reinterpret_cast<TrainThreadTask*>(ptr);
@@ -524,9 +559,8 @@ void ReplacementCandidates(NNet* forward, NNet* reverse, const std::string s)
         exit(1);
     }
 
-
     bool kDynamicMaxentPruning = false;
-    MixtureNet mn(forward, reverse, kDynamicMaxentPruning);
+    MixtureNet mn(forward, reverse, kHSMaxentPrunning);
     DiverseCandidateMaker dcm(mn);
 
     auto wids = mn.GetWids(input[0]);
@@ -912,10 +946,18 @@ int main(int argc, char** argv)
 
     // Construct/load neural network
     const std::string model_weight_file = model_vocab_file+".nnet";
+    const std::string rev_model_weight_file = model_vocab_file+"-rev.nnet";
     NNet* main_nnet = NULL;
+    NNet* rev_nnet = NULL;
     if (has_vocab && Exists(model_weight_file)) {
+        if (!Exists(rev_model_weight_file)) {
+            printf("reverse model file %s is not found", rev_model_weight_file.c_str());
+            exit(1);
+        }
         fprintf(stderr, "Restoring existing nnet\n");
         main_nnet = new NNet(vocab, model_weight_file, use_cuda, use_cuda_memory_efficient);
+        rev_nnet = new NNet(vocab, rev_model_weight_file, use_cuda, use_cuda_memory_efficient);
+
     }
     else {
         fprintf(stderr, "Constructing a new net (no model file is found)\n");
@@ -936,6 +978,8 @@ int main(int argc, char** argv)
         main_nnet->Save(model_weight_file);
     }
 
+    MixtureNet mn(main_nnet, rev_nnet, false);
+
     if (show_train_entropy && (main_nnet->cfg.use_nce>0 || main_nnet->cfg.maxent_order>0)) {
         fprintf(stderr, "WARNING --show-train-entropy could be used only for HS based models without maxent\n");
         show_train_entropy = false;
@@ -947,7 +991,7 @@ int main(int argc, char** argv)
     else if (!test_file.empty()) {
         // Apply mode
         const bool kPrintLogprobs = true;
-        Real test_enropy = EvaluateLM(main_nnet, test_file, kPrintLogprobs, nce_accurate_test);
+        Real test_enropy = EvaluateLM(mn, test_file);
         if (!main_nnet->cfg.use_nce || nce_accurate_test) {
             fprintf(stderr, "Test entropy %f\n", test_enropy);
         }

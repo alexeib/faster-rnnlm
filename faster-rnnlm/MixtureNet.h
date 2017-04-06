@@ -22,11 +22,11 @@ class MixtureNet {
 public:
     explicit MixtureNet(NNet* forward, NNet* reverse, bool dynamicPruning);
 
-    std::vector<WordIndex> GetWids(std::string& sentence) const;
+    std::vector<WordIndex> GetWids(const std::string& sentence) const;
 
-    Real Log10WordProbability(std::string& sentence, int wordPos);
+    Real Log10WordProbability(const std::string& sentence, int wordPos);
 
-    Real Log10WordProbability(std::vector<WordIndex>& wids, int wordPos);
+    Real Log10WordProbability(const std::vector<WordIndex>& wids, int wordPos);
 
     const Tree* GetHSTree() const { return forward_.nnet->softmax_layer->GetTree(); }
 
@@ -34,7 +34,9 @@ public:
 
     NNet* GetReverseNet() const { return forward_.nnet; }
 
-    std::string GetWordByIndex(WordIndex idx) { return forward_.nnet->vocab.GetWordByIndex(idx); }
+    std::string GetWordByIndex(WordIndex idx) const { return forward_.nnet->vocab.GetWordByIndex(idx); }
+
+    const Vocabulary& GetVocabulary() const { return forward_.nnet->vocab; }
 
 private:
     const NetData forward_;
