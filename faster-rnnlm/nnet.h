@@ -71,4 +71,14 @@ struct NNet {
   void SaveCompatible(const std::string& model_file) const;
 };
 
+template <typename IRecUpdater>
+inline void PropagateForward(NNet* nnet, const WordIndex* sen, int sen_length, IRecUpdater* layer)
+{
+  RowMatrix& input = layer->GetInputMatrix();
+  for (int i = 0; i<sen_length; ++i) {
+    input.row(i) = nnet->embeddings.row(sen[i]);
+  }
+  layer->ForwardSequence(sen_length);
+}
+
 #endif  // FASTER_RNNLM_NNET_H_

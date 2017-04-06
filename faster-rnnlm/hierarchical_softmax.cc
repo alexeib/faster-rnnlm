@@ -15,87 +15,7 @@ using std::vector;
 
 static const int kDynamic = 0;
 
-class HSTree::Tree {
-public:
-    // children array defines for each inner node defines its children
-    Tree(int leaf_count, const vector<int>& children, int arity);
 
-    int GetRootNode() const { return root_node_; }
-
-    int GetTreeHeight() const { return tree_height_; }
-
-    int GetArity() const { return arity_; }
-
-    bool IsLeaf(int node) const { return (node<leaf_count_); }
-
-    // get path_lengths for the word, i.e. the length of the path
-    // from the root to the word
-    int GetPathLength(WordIndex word) const { return path_lengths_[word]; }
-
-    int& GetPathLength(WordIndex word) { return path_lengths_[word]; }
-
-    // get array of path length node ids that lead from root to the word
-    const int* GetPathToLeaf(WordIndex word) const
-    {
-        return points_.data()+word*(MAX_HSTREE_DEPTH+1);
-    }
-
-    int* GetPathToLeaf(WordIndex word)
-    {
-        return points_.data()+word*(MAX_HSTREE_DEPTH+1);
-    }
-
-    // get array of (path_lengths - 1) indices of branch ids that lead from root to the word
-    const int* GetBranchPathToLead(WordIndex word) const
-    {
-        return branches_.data()+word*MAX_HSTREE_DEPTH;
-    }
-
-    int* GetBranchPathToLead(WordIndex word)
-    {
-        return branches_.data()+word*MAX_HSTREE_DEPTH;
-    }
-
-    // get array of size arity_ that contains indices of the node's children
-    // 'node' must be inner node (node >= vocab_size)
-    const int* GetChildren(int node) const
-    {
-        return children_.data()+(node-leaf_count_)*arity_;
-    }
-
-    // Get offset that corresponds to the child node in weights matrix
-    //
-    // Child node is the child number 'branch' of the node 'node_id'
-    //
-    // 'branch' belongs to {0, ..., arity_ - 2}
-    // 'node' must be inner node (node >= vocab_size)
-    int GetChildOffset(int node, int branch) const
-    {
-        return (node-leaf_count_)*(arity_-1)+branch;
-    }
-
-    // Get offset that corresponds to the child node in weights matrix
-    //
-    // Child node is the child number 'branch' of the node on depth 'depth'
-    // on the path from the root to the word
-    //
-    // 'branch' belongs to {0, ..., arity_ - 2}
-    int GetChildOffsetByDepth(WordIndex word, int depth, int branch) const
-    {
-        return GetChildOffset(GetPathToLeaf(word)[depth], branch);
-    }
-
-protected:
-    const int leaf_count_;
-    const int arity_;
-    int root_node_;
-    int tree_height_;
-
-    vector<int> children_;
-    vector<int> path_lengths_;
-    vector<int> points_;
-    vector<int> branches_;
-};
 
 // Constructs a tree with leaf_count leaf nodes using a list of children
 //
@@ -108,7 +28,7 @@ protected:
 // children array could be considered as a row-based matrix
 // with (inner nodes) rows and (arity) cols
 // Element (i, j) is an index of j-th child of (leaf_count + i)-th node
-HSTree::Tree::Tree(int leaf_count, const vector<int>& children, int arity)
+Tree::Tree(int leaf_count, const vector<int>& children, int arity)
         :leaf_count_(leaf_count), arity_(arity), root_node_(-1)     // to be filled
         , tree_height_(-1)   // to be filled
         , children_(children), path_lengths_(leaf_count), points_(leaf_count*(MAX_HSTREE_DEPTH+1)),
@@ -557,55 +477,6 @@ Real HSTree::CalculateLog10Probability(
     }
 
     return logprob;
-}
-
-std::vector<WordIndex>
-HSTree::DiverseCandidates(int node, int curr_depth, int target_depth, const uint64_t* feature_hashes, int maxent_order,
-        bool dynamic_maxent_prunning,
-        const Real* hidden, const MaxEnt* maxent) const
-{
-    std::vector<WordIndex> res;
-    auto children = tree_->GetChildren(node);
-    if (curr_depth<=target_depth) {
-        for (int i = 0; i<tree_->GetArity(); ++i) {
-            auto v = DiverseCandidates(children[i], curr_depth+1, target_depth, feature_hashes, maxent_order,
-                    dynamic_maxent_prunning, hidden, maxent);
-            res.insert(res.end(), v.begin(), v.end());
-        }
-    }
-    else {
-        if (tree_->IsLeaf(node)) {
-            res.push_back(node);
-        }
-        else {
-            auto child_probs = ChildProbs(node, feature_hashes, maxent_order, dynamic_maxent_prunning, hidden, maxent);
-            auto max_branch = std::distance(child_probs.begin(),
-                    std::max_element(child_probs.begin(), child_probs.end()));
-            auto selected_node = children[max_branch];
-            if (tree_->IsLeaf(selected_node)) {
-                res.push_back(selected_node);
-            }
-            else {
-                auto v = DiverseCandidates(selected_node, curr_depth+1, target_depth, feature_hashes, maxent_order,
-                        dynamic_maxent_prunning, hidden, maxent);
-                res.insert(res.end(), v.begin(), v.end());
-            }
-        }
-    }
-    return res;
-}
-
-std::vector<WordIndex>
-HSTree::DiverseCandidates(int target_number, const uint64_t* feature_hashes, int maxent_order,
-        bool dynamic_maxent_prunning,
-        const Real* hidden, const MaxEnt* maxent) const
-{
-    if (tree_->GetArity()!=2) throw "expected tree with arity = 2";
-    int target_depth = ceil(log2(target_number))-1;
-    return DiverseCandidates(tree_->GetRootNode(), 0, target_depth, feature_hashes, maxent_order,
-            dynamic_maxent_prunning,
-            hidden,
-            maxent);
 }
 
 void HSTree::SampleWord(

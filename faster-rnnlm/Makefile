@@ -28,7 +28,7 @@ else
 endif
 
 LAYER_OBJ_FILES = layers/simple_layer.o layers/gru_layer.o layers/scrn_layer.o layers/layer_stack.o layers/interface.o
-OBJ_FILES = hierarchical_softmax.o nce.o words.o maxent.o nnet.o $(LAYER_OBJ_FILES)
+OBJ_FILES = mixturenet.o diversecandidates.o hierarchical_softmax.o nce.o words.o maxent.o nnet.o $(LAYER_OBJ_FILES)
 ifeq ($(NVCC_TEST), nvcc)
 	OBJ_FILES += cuda_softmax.o
 endif
@@ -42,6 +42,12 @@ hierarchical_softmax.o : hierarchical_softmax.cc hierarchical_softmax.h maxent.h
 	$(CC) $< -c -o $@ $(CFLAGS)
 
 words.o : words.cc words.h settings.h
+	$(CC) $< -c -o $@ $(CFLAGS)
+
+mixturenet.o : MixtureNet.cc MixtureNet.h
+	$(CC) $< -c -o $@ $(CFLAGS)
+
+diversecandidates.o : DiverseCandidateMaker.cc DiverseCandidateMaker.h
 	$(CC) $< -c -o $@ $(CFLAGS)
 
 rnnlm.o : rnnlm.cc maxent.h nnet.h nce.h settings.h hierarchical_softmax.h words.h layers/interface.h util.h program_options.h

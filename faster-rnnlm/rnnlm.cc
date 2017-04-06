@@ -26,6 +26,8 @@
 #include "faster-rnnlm/util.h"
 #include "faster-rnnlm/words.h"
 #include "words.h"
+#include "MixtureNet.h"
+#include "DiverseCandidateMaker.h"
 
 namespace {
 
@@ -34,7 +36,6 @@ namespace {
     };
 
 // Compile time parameters
-    const bool kMaxentAddPadding = false;
     const bool kHSMaxentPrunning = true;
 #ifdef NOCUDA
     const bool kHaveCudaSupport = false;
@@ -116,26 +117,6 @@ struct SimpleTimer {
     struct timespec start;
 #endif
 };
-
-// Fill ngram_hashes with indices of maxent hashes for given position in the sentence
-// Returns number of indices
-inline int CalculateMaxentHashIndices(
-        const NNet* nnet, const WordIndex* sen, int pos, uint64_t* ngram_hashes)
-{
-    int maxent_present = CalculateMaxentHashIndices(
-            sen, pos, nnet->cfg.maxent_order, nnet->cfg.maxent_hash_size-nnet->vocab.size(),
-            kMaxentAddPadding, ngram_hashes);
-    return maxent_present;
-}
-
-inline void PropagateForward(NNet* nnet, const WordIndex* sen, int sen_length, IRecUpdater* layer)
-{
-    RowMatrix& input = layer->GetInputMatrix();
-    for (int i = 0; i<sen_length; ++i) {
-        input.row(i) = nnet->embeddings.row(sen[i]);
-    }
-    layer->ForwardSequence(sen_length);
-}
 
 // Checks file existence
 bool Exists(const std::string& fname)
@@ -527,13 +508,8 @@ void split(const std::string& s, char delim, Out result)
     }
 }
 
-void ReplacementCandidates(NNet* nnet, const std::string s)
+void ReplacementCandidates(NNet* forward, NNet* reverse, const std::string s)
 {
-    if (nnet->cfg.use_nce) {
-        printf("replacement candidates only supported with hierarchical softmax");
-        exit(1);
-    }
-
     std::vector<std::string> input;
     split(s, ':', std::back_inserter(input));
     if (input.size()!=2) {
@@ -547,49 +523,22 @@ void ReplacementCandidates(NNet* nnet, const std::string s)
         printf("word index %d is out of range for string %s", input[1], input[0]);
         exit(1);
     }
-    std::vector<WordIndex> wids;
-    {
-        for (auto& t : words) {
-            WordIndex wid = nnet->vocab.GetIndexByWord(t.c_str());
-            if (wid==0) {
-                break;
-            }
-            if (wid==Vocabulary::kWordOOV) {
-                wid = nnet->vocab.GetIndexByWord("<unk>");
-                if (wid==Vocabulary::kWordOOV) {
-                    fprintf(stderr, "ERROR Word '%s' is not found in vocabulary;"
-                            " moreover, <unk> is not found as well\n", t);
-                    exit(1);
-                }
-            }
-            wids.push_back(wid);
-        }
-    }
 
-    std::vector<WordIndex> sen = wids;
-    sen.resize(idx);
 
-    IRecUpdater* updater = nnet->rec_layer->CreateUpdater();
-    const RowMatrix& output = updater->GetOutputMatrix();
-    PropagateForward(nnet, sen.data(), sen.size(), updater);
-
-    sen.resize(idx+1);
-    sen.back() = 0;
-
-    printf("Original: %s | %f\n", input[0].c_str(), CalculateWordLogProb(nnet, wids, idx, output));
-
-    uint64_t ngram_hashes[MAX_NGRAM_ORDER];
-    int maxent_present = CalculateMaxentHashIndices(nnet, sen.data(), idx, ngram_hashes);
     bool kDynamicMaxentPruning = false;
-    auto candidates = nnet->softmax_layer->DiverseCandidates(10, ngram_hashes, maxent_present, kDynamicMaxentPruning,
-            output.row(idx-1).data(), &nnet->maxent_layer);
+    MixtureNet mn(forward, reverse, kDynamicMaxentPruning);
+    DiverseCandidateMaker dcm(mn);
 
-    for(auto c : candidates) {
-        sen.back() = c;
-        printf("Candidate: %s | %f\n", nnet->vocab.GetWordByIndex(c), CalculateWordLogProb(nnet, sen, idx, output));
+    auto wids = mn.GetWids(input[0]);
+    printf("Original: %s | %f\n", input[0].c_str(), mn.Log10WordProbability(wids, idx));
+
+    auto candidates = dcm.DiverseCandidates(wids, idx, 10, kDynamicMaxentPruning);
+
+    auto sen = wids;
+    for (auto c : candidates) {
+        sen[idx] = c;
+        printf("Candidate: %s | %f\n", mn.GetWordByIndex(c), mn.Log10WordProbability(wids, idx));
     }
-
-    delete updater;
 }
 
 void NextCandidates(NNet* nnet, std::string prefix)
@@ -1010,7 +959,7 @@ int main(int argc, char** argv)
         NextCandidates(main_nnet, complete_phrase);
     }
     else if (!replacement_candidates.empty()) {
-        ReplacementCandidates(main_nnet, replacement_candidates);
+        ReplacementCandidates(main_nnet, nullptr, replacement_candidates);
     }
     else {
         // Train mode
