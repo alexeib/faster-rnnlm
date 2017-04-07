@@ -543,7 +543,7 @@ void split(const std::string& s, char delim, Out result)
     }
 }
 
-void ReplacementCandidates(NNet* forward, NNet* reverse, const std::string s)
+void ReplacementCandidates(MixtureNet& mn, const std::string s)
 {
     std::vector<std::string> input;
     split(s, ':', std::back_inserter(input));
@@ -559,8 +559,7 @@ void ReplacementCandidates(NNet* forward, NNet* reverse, const std::string s)
         exit(1);
     }
 
-    bool kDynamicMaxentPruning = false;
-    MixtureNet mn(forward, reverse, kHSMaxentPrunning);
+    bool kDynamicMaxentPruning = true;
     DiverseCandidateMaker dcm(mn);
 
     auto wids = mn.GetWids(input[0]);
@@ -571,7 +570,7 @@ void ReplacementCandidates(NNet* forward, NNet* reverse, const std::string s)
     auto sen = wids;
     for (auto c : candidates) {
         sen[idx] = c;
-        printf("Candidate: %s | %f\n", mn.GetWordByIndex(c), mn.Log10WordProbability(wids, idx));
+        printf("Candidate: %s | %f\n", mn.GetWordByIndex(c).c_str(), mn.Log10WordProbability(sen, idx));
     }
 }
 
@@ -1003,7 +1002,7 @@ int main(int argc, char** argv)
         NextCandidates(main_nnet, complete_phrase);
     }
     else if (!replacement_candidates.empty()) {
-        ReplacementCandidates(main_nnet, nullptr, replacement_candidates);
+        ReplacementCandidates(mn, replacement_candidates);
     }
     else {
         // Train mode

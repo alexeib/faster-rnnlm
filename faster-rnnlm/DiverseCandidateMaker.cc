@@ -5,7 +5,7 @@
 #include "DiverseCandidateMaker.h"
 
 DirData createDirData(NNet* net, const std::vector<WordIndex>& wids, int pos) {
-    uint64_t ngram_hashes[MAX_NGRAM_ORDER];
+    uint64_t* ngram_hashes = new uint64_t[MAX_NGRAM_ORDER];
     auto updater= net->rec_layer->CreateUpdater();
     const auto& output = updater->GetOutputMatrix();
     auto maxent_present =CalculateMaxentHashIndices(net, wids.data(), pos, ngram_hashes);
@@ -20,9 +20,14 @@ DiverseCandidateMaker::DiverseCandidates(const std::vector<WordIndex>& wids, int
     if (tree->GetArity()!=2) throw "expected tree with arity = 2";
     int target_depth = ceil(log2(target_number))-1;
 
-    auto forw = createDirData(mn_.GetForwardNet(), wids, pos);
-    const std::vector<WordIndex> revWids(wids.rbegin(), wids.rend());
-    auto rev = createDirData(mn_.GetReverseNet(), revWids, wids.size() - 1 - pos);
+    std::vector<WordIndex> paddedWids;
+    paddedWids.push_back(0);
+    paddedWids.insert(paddedWids.end(), wids.begin(), wids.end());
+    paddedWids.push_back(0);
+    std::vector<WordIndex> reverseWids(paddedWids.rbegin(), paddedWids.rend());
+
+    auto forw = createDirData(mn_.GetForwardNet(), paddedWids, pos+1);
+    auto rev = createDirData(mn_.GetReverseNet(), reverseWids, wids.size() - pos);
 
     return DiverseCandidates(tree->GetRootNode(), 0, target_depth, dynamic_maxent_prunning,
             wids.size(), pos, forw, rev);
@@ -51,7 +56,7 @@ std::vector<WordIndex>
 DiverseCandidateMaker::DiverseCandidates(int node, int curr_depth, int target_depth, bool dynamic_maxent_prunning,
         int sentence_length, int word_pos, const DirData& forward, const DirData& reverse) const
 {
-    const Real kThreshold = 0.2;
+    const Real kThreshold = 0.3;
     auto tree = forward.nnet->softmax_layer->GetTree();
 
     std::vector<WordIndex> res;

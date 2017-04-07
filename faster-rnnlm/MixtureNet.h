@@ -32,7 +32,7 @@ public:
 
     NNet* GetForwardNet() const { return forward_.nnet; }
 
-    NNet* GetReverseNet() const { return forward_.nnet; }
+    NNet* GetReverseNet() const { return reverse_.nnet; }
 
     std::string GetWordByIndex(WordIndex idx) const { return forward_.nnet->vocab.GetWordByIndex(idx); }
 

@@ -12,7 +12,10 @@ struct DirData {
     const Real* hidden;
     IRecUpdater* updater;
 
-    ~DirData() { delete updater; }
+    ~DirData() {
+        delete updater;
+        delete[] feature_hashes;
+    }
 };
 
 class DiverseCandidateMaker {
