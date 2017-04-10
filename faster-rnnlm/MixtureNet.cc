@@ -9,18 +9,6 @@ MixtureNet::MixtureNet(NNet* forward, NNet* reverse, bool dynamicPruning)
 {
 }
 
-template<typename Out>
-void split(const std::string& s, char delim, Out result)
-{
-    std::stringstream ss;
-    ss.str(s);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        if (!item.empty())
-            *(result++) = item;
-    }
-}
-
 std::vector<WordIndex> MixtureNet::GetWids(const std::string& sentence) const
 {
     std::vector<std::string> words;
@@ -44,7 +32,8 @@ std::vector<WordIndex> MixtureNet::GetWids(const std::string& sentence) const
     return wids;
 }
 
-Real getWeightedProb(const NetData& nd, const std::vector<WordIndex> wids, int pos, bool dynamicMaxentPruning)
+Real getWeightedProb(const NetData& nd, const std::vector<WordIndex> wids, int pos, bool dynamicMaxentPruning,
+        const std::string& curr_chars)
 {
     if (wids.size()<=1 || pos==0) {
         return 0;
@@ -57,7 +46,7 @@ Real getWeightedProb(const NetData& nd, const std::vector<WordIndex> wids, int p
     int maxent_present = CalculateMaxentHashIndices(nd.nnet, wids.data(), pos, ngram_hashes);
     auto prob = nd.nnet->softmax_layer->CalculateLog10Probability(
             wids[pos], ngram_hashes, maxent_present, dynamicMaxentPruning,
-            output.row(pos-1).data(), &nd.nnet->maxent_layer);
+            output.row(pos-1).data(), &nd.nnet->maxent_layer, curr_chars);
     return prob*weight;
 }
 
@@ -74,8 +63,10 @@ Real MixtureNet::Log10WordProbability(const std::vector<WordIndex>& wids, int wo
     paddedWids.insert(paddedWids.end(), wids.begin(), wids.end());
     paddedWids.push_back(0);
 
+    auto word = std::string(forward_.nnet->vocab.GetWordByIndex(wids[wordPos]));
+
     std::vector<WordIndex> reverseWids(paddedWids.rbegin(), paddedWids.rend());
-    auto forwardProb = getWeightedProb(forward_, paddedWids, wordPos+1, kDynamicMaxentPruning);
-    auto reverseProb = getWeightedProb(reverse_, reverseWids, wids.size()-wordPos, kDynamicMaxentPruning);
+    auto forwardProb = getWeightedProb(forward_, paddedWids, wordPos+1, kDynamicMaxentPruning, word);
+    auto reverseProb = getWeightedProb(reverse_, reverseWids, wids.size()-wordPos, kDynamicMaxentPruning, word);
     return reverseProb+forwardProb;
 }

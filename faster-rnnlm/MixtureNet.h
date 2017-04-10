@@ -13,9 +13,9 @@ struct NetData {
     IRecUpdater* updater;
 
     NetData(NNet* net)
-            :nnet(net), updater(net->rec_layer->CreateUpdater()) { }
+            :nnet(net), updater(net ? net->rec_layer->CreateUpdater() : nullptr) { }
 
-    ~NetData() { delete updater; }
+    ~NetData() { if(updater) delete updater; }
 };
 
 class MixtureNet {

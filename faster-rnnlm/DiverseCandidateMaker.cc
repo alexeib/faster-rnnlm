@@ -4,12 +4,13 @@
 
 #include "DiverseCandidateMaker.h"
 
-DirData createDirData(NNet* net, const std::vector<WordIndex>& wids, int pos) {
+DirData createDirData(NNet* net, const std::vector<WordIndex>& wids, int pos)
+{
     uint64_t* ngram_hashes = new uint64_t[MAX_NGRAM_ORDER];
-    auto updater= net->rec_layer->CreateUpdater();
+    auto updater = net->rec_layer->CreateUpdater();
     const auto& output = updater->GetOutputMatrix();
-    auto maxent_present =CalculateMaxentHashIndices(net, wids.data(), pos, ngram_hashes);
-    return { ngram_hashes, maxent_present, net, output.row(pos-1).data(),updater};
+    auto maxent_present = CalculateMaxentHashIndices(net, wids.data(), pos, ngram_hashes);
+    return {ngram_hashes, maxent_present, net, output.row(pos-1).data(), updater};
 }
 
 std::vector<WordIndex>
@@ -27,10 +28,12 @@ DiverseCandidateMaker::DiverseCandidates(const std::vector<WordIndex>& wids, int
     std::vector<WordIndex> reverseWids(paddedWids.rbegin(), paddedWids.rend());
 
     auto forw = createDirData(mn_.GetForwardNet(), paddedWids, pos+1);
-    auto rev = createDirData(mn_.GetReverseNet(), reverseWids, wids.size() - pos);
+    auto rev = createDirData(mn_.GetReverseNet(), reverseWids, wids.size()-pos);
+
+    auto curr_word = std::string(forw.nnet->vocab.GetWordByIndex(wids[pos]));
 
     return DiverseCandidates(tree->GetRootNode(), 0, target_depth, dynamic_maxent_prunning,
-            wids.size(), pos, forw, rev);
+            wids.size(), pos, forw, rev, curr_word);
 }
 
 std::vector<double>
@@ -54,7 +57,8 @@ combinedProbs(const std::vector<double>& forward_probs, const std::vector<double
 
 std::vector<WordIndex>
 DiverseCandidateMaker::DiverseCandidates(int node, int curr_depth, int target_depth, bool dynamic_maxent_prunning,
-        int sentence_length, int word_pos, const DirData& forward, const DirData& reverse) const
+        int sentence_length, int word_pos, const DirData& forward, const DirData& reverse,
+        const std::string& curr_word) const
 {
     const Real kThreshold = 0.3;
     auto tree = forward.nnet->softmax_layer->GetTree();
@@ -67,16 +71,16 @@ DiverseCandidateMaker::DiverseCandidates(int node, int curr_depth, int target_de
     auto children = tree->GetChildren(node);
     auto forward_child_probs = forward.nnet->softmax_layer->ChildProbs(node, forward.feature_hashes,
             forward.maxent_present,
-            dynamic_maxent_prunning, forward.hidden, &forward.nnet->maxent_layer);
+            dynamic_maxent_prunning, forward.hidden, &forward.nnet->maxent_layer, curr_word);
     auto reverse_child_probs = reverse.nnet->softmax_layer->ChildProbs(node, reverse.feature_hashes,
             reverse.maxent_present,
-            dynamic_maxent_prunning, reverse.hidden, &reverse.nnet->maxent_layer);
+            dynamic_maxent_prunning, reverse.hidden, &reverse.nnet->maxent_layer, curr_word);
     auto child_probs = combinedProbs(forward_child_probs, reverse_child_probs, sentence_length, word_pos);
     if (curr_depth<=target_depth) {
         for (int i = 0; i<tree->GetArity(); ++i) {
             if (child_probs[i]>=kThreshold) {
                 auto v = DiverseCandidates(children[i], curr_depth+(1-child_probs[i]<kThreshold ? 0 : 1), target_depth,
-                        dynamic_maxent_prunning, sentence_length, word_pos, forward, reverse);
+                        dynamic_maxent_prunning, sentence_length, word_pos, forward, reverse, curr_word);
                 res.insert(res.end(), v.begin(), v.end());
             }
         }
@@ -90,7 +94,7 @@ DiverseCandidateMaker::DiverseCandidates(int node, int curr_depth, int target_de
         }
         else {
             auto v = DiverseCandidates(selected_node, curr_depth+1, target_depth, dynamic_maxent_prunning,
-                    sentence_length, word_pos, forward, reverse);
+                    sentence_length, word_pos, forward, reverse, curr_word);
             res.insert(res.end(), v.begin(), v.end());
         }
     }

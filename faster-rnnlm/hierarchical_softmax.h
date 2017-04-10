@@ -9,6 +9,7 @@
 #include "faster-rnnlm/settings.h"
 #include "faster-rnnlm/util.h"
 #include "faster-rnnlm/words.h"
+#include "CharEmbedding.h"
 
 class MaxEnt;
 
@@ -98,9 +99,10 @@ class HSTree {
 public:
     // Factory function to build k-ary Huffman tree_ using the word counts
     // Frequent words will have short unique k-nary codes
-    static HSTree* CreateHuffmanTree(const Vocabulary&, int layer_size, int arity);
+    static HSTree* CreateHuffmanTree(const Vocabulary&, int layer_size, CharEmbedding& char_embedding, int arity);
 
-    static HSTree* CreateRandomTree(const Vocabulary&, int layer_size, int arity, uint64_t seed);
+    static HSTree*
+    CreateRandomTree(const Vocabulary&, int layer_size, CharEmbedding& char_embedding, int arity, uint64_t seed);
 
     ~HSTree();
 
@@ -149,7 +151,7 @@ public:
             WordIndex target_word,
             const uint64_t* feature_hashes, int maxent_order,
             bool dynamic_maxent_prunning,
-            const Real* hidden, const MaxEnt* maxent) const;
+            const Real* hidden, const MaxEnt* maxent, const std::string& curr_chars) const;
 
     // Sample a word given maxent and hidden layers
     //
@@ -163,11 +165,11 @@ public:
     void SampleWord(
             const uint64_t* feature_hashes, int maxent_order,
             const Real* hidden, const MaxEnt* maxent,
-            Real* logprob, WordIndex* sampled_word) const;
+            Real* logprob, WordIndex* sampled_word, const std::string& curr_chars) const;
 
     std::vector<double> ChildProbs(int node, const uint64_t* feature_hashes, int maxent_order,
             bool dynamic_maxent_prunning,
-            const Real* hidden, const MaxEnt* maxent) const;
+            const Real* hidden, const MaxEnt* maxent, const std::string& curr_chars) const;
 
     const Tree* GetTree() { return tree_; }
 
@@ -175,11 +177,15 @@ public:
     const size_t syn_size;
     RowMatrix weights_;
     Tree* tree_;
+    CharEmbedding& char_embedding_;
+    const Vocabulary& vocab_;
 
 protected:
-    HSTree(int vocab_size, int layer_size, int arity, const std::vector<int>& children);
+    HSTree(const Vocabulary& vocab, int layer_size, CharEmbedding& char_embedding, int arity, const std::vector<int>& children);
+
 private:
     HSTree(const HSTree&);
+
     HSTree& operator=(const HSTree&);
 };
 

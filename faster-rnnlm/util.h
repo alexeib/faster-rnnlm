@@ -13,6 +13,17 @@ using Eigen::Ref;
 typedef Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> RowMatrix;
 typedef Eigen::Matrix<Real, 1, Eigen::Dynamic, Eigen::RowMajor> RowVector;
 
+template<typename Out>
+void split(const std::string& s, char delim, Out result)
+{
+  std::stringstream ss;
+  ss.str(s);
+  std::string item;
+  while (std::getline(ss, item, delim)) {
+    if (!item.empty())
+      *(result++) = item;
+  }
+}
 
 inline void FreadAllOrDie(void* ptr, size_t size, size_t count, FILE* fo, const char* message) {
   size_t read = fread(ptr, size, count, fo);

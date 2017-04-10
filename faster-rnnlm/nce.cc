@@ -326,7 +326,7 @@ uint64_t HSMaxEntNoiseGenerator::PrepareNoiseSample(
     tree_->SampleWord(
         ngram_hashes, maxent_present,
         NULL, maxent_layer_,
-        &sample->noise_ln_probabilities[i], &sample->noise_words[i]);
+        &sample->noise_ln_probabilities[i], &sample->noise_words[i], "");
   }
 
   for (int i = 0; i < n_samples; ++i) {
@@ -338,7 +338,7 @@ uint64_t HSMaxEntNoiseGenerator::PrepareNoiseSample(
   sample->size = n_samples;
   sample->target_ln_probability = M_LN10 * tree_->CalculateLog10Probability(
       sen[sen_pos], ngram_hashes, maxent_present, kMaxentPruning,
-      NULL, maxent_layer_);
+      NULL, maxent_layer_, "");
 
   return random_state;
 }

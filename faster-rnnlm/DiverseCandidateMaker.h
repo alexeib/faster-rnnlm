@@ -12,7 +12,8 @@ struct DirData {
     const Real* hidden;
     IRecUpdater* updater;
 
-    ~DirData() {
+    ~DirData()
+    {
         delete updater;
         delete[] feature_hashes;
     }
@@ -20,7 +21,8 @@ struct DirData {
 
 class DiverseCandidateMaker {
 public:
-    explicit DiverseCandidateMaker(MixtureNet& mixtureNet): mn_(mixtureNet) {}
+    explicit DiverseCandidateMaker(MixtureNet& mixtureNet)
+            :mn_(mixtureNet) { }
 
     std::vector<WordIndex>
     DiverseCandidates(const std::vector<WordIndex>& wids, int pos, int target_number,
@@ -31,7 +33,8 @@ private:
 
     std::vector<WordIndex>
     DiverseCandidates(int node, int curr_depth, int target_depth, bool dynamic_maxent_prunning,
-            int sentence_length, int word_pos, const DirData& forward, const DirData& reverse) const;
+            int sentence_length, int word_pos, const DirData& forward, const DirData& reverse,
+            const std::string& curr_word) const;
 };
 
 #endif //FASTER_RNNLM_DIVERSECANDIDATEMAKER_H

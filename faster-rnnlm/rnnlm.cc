@@ -161,11 +161,12 @@ Real EvaluateLM(NNet* nnet, const std::string& filename, bool print_logprobs, bo
         if (!nnet->cfg.use_nce) {
             // Hierarchical Softmax
             for (int target = 1; target<=seq_length; ++target) {
+                auto word = std::string(nnet->vocab.GetWordByIndex(sen[target]));
                 uint64_t ngram_hashes[MAX_NGRAM_ORDER];
                 int maxent_present = CalculateMaxentHashIndices(nnet, sen, target, ngram_hashes);
                 const Real logprob = nnet->softmax_layer->CalculateLog10Probability(
                         sen[target], ngram_hashes, maxent_present, kHSMaxentPrunning,
-                        output.row(target-1).data(), &nnet->maxent_layer);
+                        output.row(target-1).data(), &nnet->maxent_layer, word);
 
                 sen_logprob -= logprob;
             }
@@ -219,14 +220,13 @@ Real EvaluateLM(MixtureNet& mn, const std::string& filename)
         const WordIndex* sen = reader.sentence();
         int seq_length = reader.sentence_length();
         std::vector<WordIndex> wids;
-        for(int i = 1;i<seq_length;i++)
-        {
+        for (int i = 1; i<seq_length; i++) {
             wids.push_back(sen[i]);
         }
 
         Real sen_logprob = 0.0;
 
-        for (int target = 0; target < wids.size(); ++target) {
+        for (int target = 0; target<wids.size(); ++target) {
             const Real logprob = mn.Log10WordProbability(wids, target);
             sen_logprob -= logprob;
         }
@@ -510,38 +510,26 @@ void TrainLM(
     }
 }
 
-Real CalculateWordLogProb(NNet* nnet, std::vector<WordIndex> sen, WordIndex target, const RowMatrix& output)
-{
-    if (!nnet->cfg.use_nce) {
-        uint64_t ngram_hashes[MAX_NGRAM_ORDER];
-        bool kDynamicMaxentPruning = false;
-        int maxent_present = CalculateMaxentHashIndices(nnet, sen.data(), target, ngram_hashes);
-        return pow(10., nnet->softmax_layer->CalculateLog10Probability(
-                sen[target], ngram_hashes, maxent_present, kDynamicMaxentPruning,
-                output.row(target-1).data(), &nnet->maxent_layer));
-
-    }
-    else {
-        uint64_t ngram_hashes[MAX_NGRAM_ORDER];
-        int maxent_present = CalculateMaxentHashIndices(nnet, sen.data(), target, ngram_hashes);
-        return exp(nnet->nce->CalculateWordLnScore(
-                output.row(target-1), &nnet->maxent_layer,
-                ngram_hashes, maxent_present,
-                sen[target]));
-    }
-}
-
-template<typename Out>
-void split(const std::string& s, char delim, Out result)
-{
-    std::stringstream ss;
-    ss.str(s);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        if (!item.empty())
-            *(result++) = item;
-    }
-}
+//Real CalculateWordLogProb(NNet* nnet, std::vector<WordIndex> sen, WordIndex target, const RowMatrix& output)
+//{
+//    if (!nnet->cfg.use_nce) {
+//        uint64_t ngram_hashes[MAX_NGRAM_ORDER];
+//        bool kDynamicMaxentPruning = false;
+//        int maxent_present = CalculateMaxentHashIndices(nnet, sen.data(), target, ngram_hashes);
+//        return pow(10., nnet->softmax_layer->CalculateLog10Probability(
+//                sen[target], ngram_hashes, maxent_present, kDynamicMaxentPruning,
+//                output.row(target-1).data(), &nnet->maxent_layer));
+//
+//    }
+//    else {
+//        uint64_t ngram_hashes[MAX_NGRAM_ORDER];
+//        int maxent_present = CalculateMaxentHashIndices(nnet, sen.data(), target, ngram_hashes);
+//        return exp(nnet->nce->CalculateWordLnScore(
+//                output.row(target-1), &nnet->maxent_layer,
+//                ngram_hashes, maxent_present,
+//                sen[target]));
+//    }
+//}
 
 void ReplacementCandidates(MixtureNet& mn, const std::string s)
 {
@@ -614,13 +602,14 @@ void NextCandidates(NNet* nnet, std::string prefix)
     // Calculate (unnormalized) probabilities for each word to follow
     if (!nnet->cfg.use_nce) {
         for (int wid = 0; wid<nnet->vocab.size(); ++wid) {
+            std::string word(nnet->vocab.GetWordByIndex(wid));
             sen.back() = wid;
             uint64_t ngram_hashes[MAX_NGRAM_ORDER];
             bool kDynamicMaxentPruning = false;
             int maxent_present = CalculateMaxentHashIndices(nnet, sen.data(), target, ngram_hashes);
             probs[wid] = pow(10., nnet->softmax_layer->CalculateLog10Probability(
                     sen[target], ngram_hashes, maxent_present, kDynamicMaxentPruning,
-                    output.row(target-1).data(), &nnet->maxent_layer));
+                    output.row(target-1).data(), &nnet->maxent_layer, word));
 
         }
     }
@@ -715,12 +704,13 @@ void SampleFromLM(NNet* nnet, int seed, int n_samples, Real generate_temperature
             if (!nnet->cfg.use_nce) {
                 for (int wid = 0; wid<nnet->vocab.size(); ++wid) {
                     sen.back() = wid;
+                    std::string word(nnet->vocab.GetWordByIndex(wid));
                     uint64_t ngram_hashes[MAX_NGRAM_ORDER];
                     bool kDynamicMaxentPruning = false;
                     int maxent_present = CalculateMaxentHashIndices(nnet, sen.data(), target, ngram_hashes);
                     probs[wid] = pow(10., nnet->softmax_layer->CalculateLog10Probability(
                             sen[target], ngram_hashes, maxent_present, kDynamicMaxentPruning,
-                            output.row(target-1).data(), &nnet->maxent_layer)/generate_temperature);
+                            output.row(target-1).data(), &nnet->maxent_layer, word)/generate_temperature);
 
                 }
             }
@@ -969,7 +959,8 @@ int main(int argc, char** argv)
         NNetConfig cfg = {
                 layer_size, layer_count, maxent_hash_size, maxent_order,
                 (nce_samples>0), static_cast<Real>(nce_lnz), reverse_sentence,
-                hs_arity, layer_type};
+                hs_arity, layer_type, std::shared_ptr<CharEmbedding>(new SquashedLm1bCharEmbedding())
+        };
         main_nnet = new NNet(vocab, cfg, use_cuda, use_cuda_memory_efficient);
         if (diagonal_initialization>0) {
             main_nnet->ApplyDiagonalInitialization(diagonal_initialization);

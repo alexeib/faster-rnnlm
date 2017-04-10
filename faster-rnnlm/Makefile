@@ -1,7 +1,7 @@
 NOTHREAD = 0 # set to 1 to disable threads
 
 CC = g++
-CFLAGS = -Wall -march=native -funroll-loops -g -D__STDC_FORMAT_MACROS --std=gnu++14
+CFLAGS = -w -march=native -funroll-loops -g -D__STDC_FORMAT_MACROS --std=gnu++14
 CFLAGS += -I../ -DEIGEN_DONT_PARALLELIZE # for Eigen
 CFLAGS += $(shell $(CC) -dumpversion | awk '{if(NR==1 && $$1>="4.6") print "-Ofast"; else print "-O3";}')
 NVCC_CFLAGS = -O3 -march=native -funroll-loops
@@ -28,7 +28,7 @@ else
 endif
 
 LAYER_OBJ_FILES = layers/simple_layer.o layers/gru_layer.o layers/scrn_layer.o layers/layer_stack.o layers/interface.o
-OBJ_FILES = mixturenet.o diversecandidates.o hierarchical_softmax.o nce.o words.o maxent.o nnet.o $(LAYER_OBJ_FILES)
+OBJ_FILES = mixturenet.o diversecandidates.o charembedding.o hierarchical_softmax.o nce.o words.o maxent.o nnet.o $(LAYER_OBJ_FILES)
 ifeq ($(NVCC_TEST), nvcc)
 	OBJ_FILES += cuda_softmax.o
 endif
@@ -48,6 +48,9 @@ mixturenet.o : MixtureNet.cc MixtureNet.h
 	$(CC) $< -c -o $@ $(CFLAGS)
 
 diversecandidates.o : DiverseCandidateMaker.cc DiverseCandidateMaker.h
+	$(CC) $< -c -o $@ $(CFLAGS)
+
+charembedding.o : CharEmbedding.cpp CharEmbedding.h
 	$(CC) $< -c -o $@ $(CFLAGS)
 
 rnnlm.o : rnnlm.cc maxent.h nnet.h nce.h settings.h hierarchical_softmax.h words.h layers/interface.h util.h program_options.h
