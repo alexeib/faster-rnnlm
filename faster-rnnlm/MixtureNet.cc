@@ -56,14 +56,14 @@ Real MixtureNet::Log10WordProbability(const std::string& sentence, int wordPos)
     return Log10WordProbability(wids, wordPos);
 }
 
-Real MixtureNet::Log10WordProbability(const std::vector<WordIndex>& wids, int wordPos)
+Real MixtureNet::Log10WordProbability(const std::vector<WordIndex>& wids, int wordPos, std::string* currWord)
 {
     std::vector<WordIndex> paddedWids;
     paddedWids.push_back(0);
     paddedWids.insert(paddedWids.end(), wids.begin(), wids.end());
     paddedWids.push_back(0);
 
-    auto word = std::string(forward_.nnet->vocab.GetWordByIndex(wids[wordPos]));
+    auto word = currWord ? *currWord : std::string(forward_.nnet->vocab.GetWordByIndex(wids[wordPos]));
 
     std::vector<WordIndex> reverseWids(paddedWids.rbegin(), paddedWids.rend());
     auto forwardProb = getWeightedProb(forward_, paddedWids, wordPos+1, kDynamicMaxentPruning, word);

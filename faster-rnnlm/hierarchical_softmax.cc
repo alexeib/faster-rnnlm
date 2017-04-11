@@ -221,7 +221,7 @@ CalculateNodeChildrenScores(const HSTree *hs, int node, const Real *hidden,
     auto char_embedding = hs->char_embedding_.get_embedding(curr_chars);
     for (int i = 0; i < hs->char_embedding_.size(); ++i) {
       branch_scores[branch] +=
-          char_embedding[i] + sm_embedding[i + hs->layer_size];
+          char_embedding[i] * sm_embedding[i + hs->layer_size];
     }
     for (int order = 0; order < maxent_order; ++order) {
       uint64_t maxent_index = feature_hashes[order] + child_offset;
@@ -356,11 +356,6 @@ inline void PropagateNodeBackward(HSTree *hs, WordIndex target_word, int depth,
     auto char_emb = hs->char_embedding_.get_embedding(word);
     for (int i = 0; i < hs->char_embedding_.size(); ++i) {
       Real update = grad * char_emb[i];
-      if (std::isnan(update) || std::isinf(update)) {
-        printf("update is nan/inf for word %s pos %d! (grad=%f, emb=%f)",
-               word.c_str(), i, grad, char_emb[i]);
-        continue;
-      }
       sm_embedding[i + hs->layer_size] *= (1 - l2reg);
       sm_embedding[i + hs->layer_size] +=
           lrate * Clip(update, gradient_clipping);

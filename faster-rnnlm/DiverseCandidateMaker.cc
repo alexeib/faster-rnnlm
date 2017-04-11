@@ -60,7 +60,7 @@ DiverseCandidateMaker::DiverseCandidates(int node, int curr_depth, int target_de
         int sentence_length, int word_pos, const DirData& forward, const DirData& reverse,
         const std::string& curr_word) const
 {
-    const Real kThreshold = 0.3;
+    const Real kThreshold = 0.2;
     auto tree = forward.nnet->softmax_layer->GetTree();
 
     std::vector<WordIndex> res;

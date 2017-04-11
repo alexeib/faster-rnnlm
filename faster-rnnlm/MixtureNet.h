@@ -26,7 +26,7 @@ public:
 
     Real Log10WordProbability(const std::string& sentence, int wordPos);
 
-    Real Log10WordProbability(const std::vector<WordIndex>& wids, int wordPos);
+    Real Log10WordProbability(const std::vector<WordIndex>& wids, int wordPos, std::string* currWord = nullptr);
 
     const Tree* GetHSTree() const { return forward_.nnet->softmax_layer->GetTree(); }
 
