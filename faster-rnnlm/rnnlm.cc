@@ -1078,16 +1078,17 @@ int main(int argc, char **argv) {
   NNet *main_nnet = NULL;
   NNet *rev_nnet = NULL;
   if (has_vocab && Exists(model_weight_file)) {
+    fprintf(stderr, "Restoring existing nnet\n");
     if (!Exists(rev_model_weight_file)) {
       printf("reverse model file %s is not found",
              rev_model_weight_file.c_str());
-      exit(1);
     }
-    fprintf(stderr, "Restoring existing nnet\n");
+    else {
+      rev_nnet = new NNet(vocab, rev_model_weight_file, use_cuda,
+                          use_cuda_memory_efficient);
+    }
     main_nnet =
         new NNet(vocab, model_weight_file, use_cuda, use_cuda_memory_efficient);
-    rev_nnet = new NNet(vocab, rev_model_weight_file, use_cuda,
-                        use_cuda_memory_efficient);
 
   } else {
     fprintf(stderr, "Constructing a new net (no model file is found)\n");
