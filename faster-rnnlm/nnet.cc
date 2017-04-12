@@ -137,7 +137,7 @@ void NNet::Init()
     }
     else {
         if (!cfg.char_embedding) {
-            cfg.char_embedding = std::shared_ptr<CharEmbedding>(new SquashedLm1bCharEmbedding());
+            cfg.char_embedding = CharEmbeddingFactory::create();
         }
         softmax_layer = HSTree::CreateHuffmanTree(vocab, cfg.layer_size, *cfg.char_embedding, cfg.hs_arity);
         // softmax_layer = HSTree::CreateRandomTree(vocab, cfg.layer_size, cfg.hs_arity, 0);

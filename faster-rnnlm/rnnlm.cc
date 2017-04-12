@@ -1107,7 +1107,7 @@ int main(int argc, char **argv) {
         reverse_sentence,
         hs_arity,
         layer_type,
-        std::shared_ptr<CharEmbedding>(new SquashedLm1bCharEmbedding())};
+        CharEmbeddingFactory::create()};
     main_nnet = new NNet(vocab, cfg, use_cuda, use_cuda_memory_efficient);
     if (diagonal_initialization > 0) {
       main_nnet->ApplyDiagonalInitialization(diagonal_initialization);

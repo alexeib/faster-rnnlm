@@ -57,7 +57,7 @@ if [ ! -f "$basedir/crnnlm/rnnlm" ]; then
     mkdir -p $basedir/crnnlm
     (
         cd $basedir/crnnlm
-        wget_or_curl https://f25ea9ccb7d3346ce6891573d543960492b92c30.googledrive.com/host/0ByxdPXuxLPS5RFM5dVNvWVhTd0U/rnnlm-0.4b.tgz rnnlm-0.4b.tgz
+        wget_or_curl http://www.mirrorservice.org/sites/distfiles.macports.org/rnnlm/rnnlm-0.4b.tgz rnnlm-0.4b.tgz
         tar -xf rnnlm-0.4b.tgz
         cd rnnlm-0.4b
         sed -i -- 's/x86_64-linux-g++-4.6/g++/g' makefile
