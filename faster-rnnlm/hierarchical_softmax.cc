@@ -14,6 +14,7 @@
 using std::vector;
 
 static const int kDynamic = 0;
+static const int kUseBias = 0;
 
 // Constructs a tree with leaf_count leaf nodes using a list of children
 //
@@ -101,7 +102,7 @@ HSTree::HSTree(const Vocabulary &vocab, int layer_size,
     : vocab_(vocab), layer_size(layer_size),
       syn_size(static_cast<size_t>(layer_size)*vocab.size()),
       char_embedding_(char_embedding),
-      weights_(vocab.size(), layer_size + char_embedding.size() + 1),
+      weights_(vocab.size(), layer_size + char_embedding.size() + kUseBias),
       tree_(new Tree(vocab.size(), children, arity)) {
   if (layer_size) {
     InitNormal(1./std::sqrt(layer_size + char_embedding.size()), &weights_);
@@ -227,7 +228,10 @@ CalculateNodeChildrenScores(const HSTree *hs, int node, const Real *hidden,
       uint64_t maxent_index = feature_hashes[order] + child_offset;
       branch_scores[branch] += maxent->GetValue(maxent_index);
     }
-    branch_scores[branch] += sm_embedding[hs->char_embedding_.size() + hs->layer_size];
+
+    for (int i = 0; i < kUseBias; ++i) {
+      branch_scores[branch] += sm_embedding[hs->char_embedding_.size() + hs->layer_size + i];
+    }
   }
 }
 
@@ -363,10 +367,11 @@ inline void PropagateNodeBackward(HSTree *hs, WordIndex target_word, int depth,
           lrate*Clip(update, gradient_clipping);
     }
 
-    Real update = grad;
-    sm_embedding[hs->char_embedding_.size() + hs->layer_size] *= (1 - l2reg);
-    sm_embedding[hs->char_embedding_.size() + hs->layer_size] +=
-        lrate*Clip(update, gradient_clipping);
+    for (int i = 0; i < kUseBias; ++i) {
+      Real update = grad;
+      sm_embedding[hs->char_embedding_.size() + hs->layer_size + i] +=
+          lrate*Clip(update, gradient_clipping);
+    }
 
     // update maxent weights
     Real maxent_grad = Clip(grad, gradient_clipping);
