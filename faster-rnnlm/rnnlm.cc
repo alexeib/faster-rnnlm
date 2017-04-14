@@ -107,7 +107,7 @@ struct SimpleTimer {
     struct timespec finish;
     clock_gettime(CLOCK_MONOTONIC, &finish);
     double elapsed = (finish.tv_sec - start.tv_sec);
-    elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
+    elapsed += (finish.tv_nsec - start.tv_nsec)/1000000000.0;
     return elapsed;
   }
 
@@ -118,7 +118,7 @@ struct SimpleTimer {
 // Checks file existence
 bool Exists(const std::string &fname) {
   FILE *f = fopen(fname.c_str(), "rb");
-  if (f == NULL) {
+  if (f==NULL) {
     return false;
   }
   fclose(f);
@@ -132,7 +132,7 @@ bool Exists(const std::string &fname) {
 Real EvaluateLM(NNet *nnet, const std::string &filename, bool print_logprobs,
                 bool accurate_nce) {
   IRecUpdater *rec_layer_updater = nnet->rec_layer->CreateUpdater();
-  bool kAutoInsertUnk = (kOOVPolicy == kConvertToUnk);
+  bool kAutoInsertUnk = (kOOVPolicy==kConvertToUnk);
   SentenceReader reader(nnet->vocab, filename, nnet->cfg.reverse_sentence,
                         kAutoInsertUnk);
   Real logprob_sum = 0;
@@ -143,7 +143,7 @@ Real EvaluateLM(NNet *nnet, const std::string &filename, bool print_logprobs,
     nnet->nce->UploadNetWeightsToCuda(&nnet->maxent_layer);
   }
   while (reader.Read()) {
-    if (reader.HasOOVWords() && kOOVPolicy == kSkipSentence) {
+    if (reader.HasOOVWords() && kOOVPolicy==kSkipSentence) {
       if (print_logprobs)
         printf("OOV\n");
       continue;
@@ -171,12 +171,12 @@ Real EvaluateLM(NNet *nnet, const std::string &filename, bool print_logprobs,
     } else {
       // Noise Contrastive Estimation
       // We use batch logprob calculation to improve performance on GPU
-      std::vector<uint64_t> ngram_hashes_all(seq_length * MAX_NGRAM_ORDER);
+      std::vector<uint64_t> ngram_hashes_all(seq_length*MAX_NGRAM_ORDER);
       std::vector<int> ngram_present_all(seq_length);
 
       for (int target = 1; target <= seq_length; ++target) {
         uint64_t *ngram_hashes =
-            ngram_hashes_all.data() + MAX_NGRAM_ORDER * (target - 1);
+            ngram_hashes_all.data() + MAX_NGRAM_ORDER*(target - 1);
         int maxent_present =
             CalculateMaxentHashIndices(nnet, sen, target, ngram_hashes);
         ngram_present_all[target - 1] = maxent_present;
@@ -198,22 +198,22 @@ Real EvaluateLM(NNet *nnet, const std::string &filename, bool print_logprobs,
   }
 
   delete rec_layer_updater;
-  if (n_words == 0) {
+  if (n_words==0) {
     fprintf(stderr, "n_words is 0!\n");
   }
-  Real entropy = logprob_sum / log10(2) / n_words;
+  Real entropy = logprob_sum/log10(2)/n_words;
   return entropy;
 }
 
 Real EvaluateLM(MixtureNet &mn, const std::string &filename) {
-  bool kAutoInsertUnk = (kOOVPolicy == kConvertToUnk);
+  bool kAutoInsertUnk = (kOOVPolicy==kConvertToUnk);
   SentenceReader reader(mn.GetVocabulary(), filename, false, kAutoInsertUnk);
   Real logprob_sum = 0;
   uint64_t n_words = 0;
 
   std::vector<Real> logprob_per_pos;
   while (reader.Read()) {
-    if (reader.HasOOVWords() && kOOVPolicy == kSkipSentence) {
+    if (reader.HasOOVWords() && kOOVPolicy==kSkipSentence) {
       continue;
     }
 
@@ -234,7 +234,7 @@ Real EvaluateLM(MixtureNet &mn, const std::string &filename) {
     logprob_sum += sen_logprob;
   }
 
-  Real entropy = logprob_sum / log10(2) / n_words;
+  Real entropy = logprob_sum/log10(2)/n_words;
   return entropy;
 }
 
@@ -270,15 +270,15 @@ void *RunThread(void *ptr) {
       }
 
       if (task.report) {
-        float done_percent = static_cast<float>(*task.n_done_bytes) /
-                             (n_total_bytes / task.n_inner_epochs + 1) * 100;
-        float speed = *task.n_done_words / (task.timer->Tick() * 1000 + 1e-5);
+        float done_percent = static_cast<float>(*task.n_done_bytes)/
+            (n_total_bytes/task.n_inner_epochs + 1)*100;
+        float speed = *task.n_done_words/(task.timer->Tick()*1000 + 1e-5);
         fprintf(
             stderr,
             "\rEpoch %2d  lr: %.2e/%.2e  progress: %6.2f%%  %.2f Kwords/sec  ",
             task.epoch, task.lrate, task.maxent_lrate, done_percent, speed);
         if (task.report_train_entopy) {
-          float train_entropy = train_logprob / log10(2) / n_done_words_local;
+          float train_entropy = train_logprob/log10(2)/n_done_words_local;
           fprintf(stderr, "entropy (bits) train: %8.5f ", train_entropy);
         }
         fflush(stdout);
@@ -373,14 +373,14 @@ void TrainLM(const std::string &model_weight_file,
   NNet *noise_net = NULL;
   INoiseGenerator *noise_generator = NULL;
   if (nnet->cfg.use_nce) {
-    if (nce_maxent_model_weight_file[0] != 0) {
+    if (nce_maxent_model_weight_file[0]!=0) {
       const bool kUseCuda = true;
       const bool kUseCudaMemoryEfficient = true;
       noise_net = new NNet(nnet->vocab, nce_maxent_model_weight_file, kUseCuda,
                            kUseCudaMemoryEfficient);
-      if (noise_net->cfg.layer_size != 0) {
+      if (noise_net->cfg.layer_size!=0) {
         fprintf(stderr, "ERROR: Cannot initialize HSMaxEntNoiseGenerator "
-                        "(layer size != 0)\n");
+            "(layer size != 0)\n");
         exit(1);
       }
 
@@ -424,7 +424,7 @@ void TrainLM(const std::string &model_weight_file,
   Real maxent_lrate = initial_maxent_lrate;
   for (int n_bad_epochs = 0, epoch = 1; n_bad_epochs <= max_bad_epochs;
        ++epoch) {
-    int inner_epoch = (epoch - 1) % n_inner_epochs;
+    int inner_epoch = (epoch - 1)%n_inner_epochs;
 
     if (do_lr_decay) {
       lrate /= lr_decay_factor;
@@ -436,9 +436,9 @@ void TrainLM(const std::string &model_weight_file,
     int64_t n_done_words = 0;
     int64_t n_done_bytes = 0;
     for (int i = 0; i < n_threads; ++i) {
-      tasks[i].chunk_id = i + inner_epoch * n_threads;
-      tasks[i].total_chunks = n_inner_epochs * n_threads;
-      tasks[i].report = (i == 0);
+      tasks[i].chunk_id = i + inner_epoch*n_threads;
+      tasks[i].total_chunks = n_inner_epochs*n_threads;
+      tasks[i].report = (i==0);
       tasks[i].report_train_entopy = show_train_entropy;
       tasks[i].timer = &timer;
       tasks[i].epoch = epoch;
@@ -483,15 +483,15 @@ void TrainLM(const std::string &model_weight_file,
     if (elapsed_train < 999) {
       fprintf(stderr, "  elapsed: %.1lfs+%.1lfs", elapsed_train,
               elapsed_validate);
-    } else if (elapsed < 999 * 60) {
-      fprintf(stderr, "  elapsed: %.1lfm+%.1lfm", elapsed_train / 60,
-              elapsed_validate / 60);
+    } else if (elapsed < 999*60) {
+      fprintf(stderr, "  elapsed: %.1lfm+%.1lfm", elapsed_train/60,
+              elapsed_validate/60);
     } else {
-      fprintf(stderr, "  elapsed: %.1lfh+%.1lfh", elapsed_train / 3600,
-              elapsed_validate / 3600);
+      fprintf(stderr, "  elapsed: %.1lfh+%.1lfh", elapsed_train/3600,
+              elapsed_validate/3600);
     }
 
-    Real ratio = bl_entropy / entropy;
+    Real ratio = bl_entropy/entropy;
     if (std::isnan(entropy) || std::isinf(entropy) || !(ratio >= bad_ratio)) {
       // !(ratio >= bad_ratio) will catch nan and inf even in fastmath mode
       if (std::isnan(entropy) || std::isinf(entropy) ||
@@ -500,7 +500,7 @@ void TrainLM(const std::string &model_weight_file,
         nnet->ReLoad(model_weight_file);
       } else {
         fprintf(stderr, "\tBad: ");
-        if (do_lr_decay || max_bad_epochs == 0) {
+        if (do_lr_decay || max_bad_epochs==0) {
           fprintf(stderr, "%d more to stop", max_bad_epochs - n_bad_epochs);
         } else {
           fprintf(stderr, "start lr decay");
@@ -551,7 +551,7 @@ void TrainLM(const std::string &model_weight_file,
 void DiverseCandidates(MixtureNet &mn, const std::string s) {
   std::vector<std::string> input;
   split(s, ':', std::back_inserter(input));
-  if (input.size() != 2) {
+  if (input.size()!=2) {
     printf("expected <phrase>:<index>, but got %s", s);
     exit(1);
   }
@@ -623,7 +623,7 @@ void TopCandidates(MixtureNet &mn, const std::string s) {
     auto word = vocab.GetWordByIndex(c);
     candidatesWithProb.emplace_back(
         word, mn.Log10WordProbability(sen, idx, &currWord));
-    if (std::find(targetWords.begin(), targetWords.end(), word) !=
+    if (std::find(targetWords.begin(), targetWords.end(), word)!=
         targetWords.end()) {
       targetCandidates.push_back(candidatesWithProb.back());
     }
@@ -631,8 +631,8 @@ void TopCandidates(MixtureNet &mn, const std::string s) {
 
   std::partial_sort(candidatesWithProb.begin(), candidatesWithProb.begin() + 10,
                     candidatesWithProb.end(), [](auto &a, auto &b) {
-                      return std::get<1>(a) > std::get<1>(b);
-                    });
+        return std::get<1>(a) > std::get<1>(b);
+      });
   candidatesWithProb.resize(10);
 
   for (auto c : candidatesWithProb) {
@@ -651,14 +651,14 @@ void NextCandidates(NNet *nnet, std::string prefix) {
 
     for (auto &t : tokens) {
       WordIndex wid = nnet->vocab.GetIndexByWord(t.c_str());
-      if (wid == 0) {
+      if (wid==0) {
         break;
       }
-      if (wid == Vocabulary::kWordOOV) {
+      if (wid==Vocabulary::kWordOOV) {
         wid = nnet->vocab.GetIndexByWord("<unk>");
-        if (wid == Vocabulary::kWordOOV) {
+        if (wid==Vocabulary::kWordOOV) {
           fprintf(stderr, "ERROR Word '%s' is not found in vocabulary;"
-                          " moreover, <unk> is not found as well\n",
+                      " moreover, <unk> is not found as well\n",
                   t);
           exit(1);
         }
@@ -691,9 +691,9 @@ void NextCandidates(NNet *nnet, std::string prefix) {
           CalculateMaxentHashIndices(nnet, sen.data(), target, ngram_hashes);
       probs[wid] =
           pow(10., nnet->softmax_layer->CalculateLog10Probability(
-                       sen[target], ngram_hashes, maxent_present,
-                       kDynamicMaxentPruning, output.row(target - 1).data(),
-                       &nnet->maxent_layer, word));
+              sen[target], ngram_hashes, maxent_present,
+              kDynamicMaxentPruning, output.row(target - 1).data(),
+              &nnet->maxent_layer, word));
     }
   } else {
     for (int wid = 0; wid < nnet->vocab.size(); ++wid) {
@@ -722,8 +722,8 @@ void NextCandidates(NNet *nnet, std::string prefix) {
     }
     std::partial_sort(candidates.begin(), candidates.begin() + 10,
                       candidates.end(), [](auto &a, auto &b) -> int {
-                        return std::get<1>(b) < std::get<1>(a);
-                      });
+          return std::get<1>(b) < std::get<1>(a);
+        });
   }
 
   for (int i = 0; i < 10; ++i) {
@@ -744,14 +744,14 @@ void SampleFromLM(NNet *nnet, int seed, int n_samples,
     char buffer[MAX_STRING];
     for (WordReader reader(""); reader.ReadWord(buffer);) {
       WordIndex wid = nnet->vocab.GetIndexByWord(buffer);
-      if (wid == 0) {
+      if (wid==0) {
         break;
       }
-      if (wid == Vocabulary::kWordOOV) {
+      if (wid==Vocabulary::kWordOOV) {
         wid = nnet->vocab.GetIndexByWord("<unk>");
-        if (wid == Vocabulary::kWordOOV) {
+        if (wid==Vocabulary::kWordOOV) {
           fprintf(stderr, "ERROR Word '%s' is not found in vocabulary;"
-                          " moreover, <unk> is not found as well\n",
+                      " moreover, <unk> is not found as well\n",
                   buffer);
           exit(1);
         }
@@ -766,7 +766,7 @@ void SampleFromLM(NNet *nnet, int seed, int n_samples,
   printf("\n");
 
   printf("Format: <prefix> | <generated> | <log10prob(generated)> | <log10prob "
-         "per word>\n");
+             "per word>\n");
 
   srand(seed);
 
@@ -782,7 +782,7 @@ void SampleFromLM(NNet *nnet, int seed, int n_samples,
     std::vector<WordIndex> sen = wids;
 
     double ending_log10prob = 0;
-    for (; sen.back() != 0;) {
+    for (; sen.back()!=0;) {
       sen.push_back(0);
       int target = sen.size() - 1;
       const RowMatrix &output = updater->GetOutputMatrix();
@@ -799,10 +799,10 @@ void SampleFromLM(NNet *nnet, int seed, int n_samples,
                                                           target, ngram_hashes);
           probs[wid] =
               pow(10., nnet->softmax_layer->CalculateLog10Probability(
-                           sen[target], ngram_hashes, maxent_present,
-                           kDynamicMaxentPruning, output.row(target - 1).data(),
-                           &nnet->maxent_layer, word) /
-                           generate_temperature);
+                  sen[target], ngram_hashes, maxent_present,
+                  kDynamicMaxentPruning, output.row(target - 1).data(),
+                  &nnet->maxent_layer, word)/
+                  generate_temperature);
         }
       } else {
         for (int wid = 0; wid < nnet->vocab.size(); ++wid) {
@@ -811,9 +811,9 @@ void SampleFromLM(NNet *nnet, int seed, int n_samples,
           int maxent_present = CalculateMaxentHashIndices(nnet, sen.data(),
                                                           target, ngram_hashes);
           probs[wid] = exp(nnet->nce->CalculateWordLnScore(
-                               output.row(target - 1), &nnet->maxent_layer,
-                               ngram_hashes, maxent_present, sen[target]) /
-                           generate_temperature);
+              output.row(target - 1), &nnet->maxent_layer,
+              ngram_hashes, maxent_present, sen[target])/
+              generate_temperature);
         }
       }
 
@@ -826,7 +826,7 @@ void SampleFromLM(NNet *nnet, int seed, int n_samples,
         }
 
         // Sample threshold
-        double p = static_cast<double>(rand()) / RAND_MAX;
+        double p = static_cast<double>(rand())/RAND_MAX;
         p *= s;
 
         std::vector<int> order(nnet->vocab.size());
@@ -854,7 +854,7 @@ void SampleFromLM(NNet *nnet, int seed, int n_samples,
 
     printf("| %f", ending_log10prob);
     printf(" | %f",
-           ending_log10prob / std::max<int>(1, sen.size() - wids.size()));
+           ending_log10prob/std::max<int>(1, sen.size() - wids.size()));
 
     printf("\n");
   }
@@ -874,7 +874,7 @@ int main(int argc, char **argv) {
       complete_phrase, diverse_candidates, top_candidates;
   bool use_cuda = kHaveCudaSupport;
   bool use_cuda_memory_efficient = false;
-  bool reverse_sentence = false;
+  bool reverse_sentence = false, create = false, create_rev = false;
   bool show_progress = true, show_train_entropy = false;
   int n_threads = 1;
   int n_inner_epochs = 1;
@@ -901,7 +901,7 @@ int main(int argc, char **argv) {
       "Count of hidden layers; all hidden layers have the same type and size",
       &layer_count);
   opts.Add("hidden-type", "Hidden layer activation (sigmoid, tanh, relu, gru, "
-                          "gru-bias, gru-insyn, gru-full)",
+               "gru-bias, gru-insyn, gru-full)",
            &layer_type);
   opts.Add("arity", "Arity of the HS tree", &hs_arity);
   opts.Add("direct", "Size of maxent layer in millions", &maxent_hash_size);
@@ -912,40 +912,44 @@ int main(int argc, char **argv) {
       &test_file);
   opts.Add("complete-phrase", "Phrase to complete", &complete_phrase);
   opts.Add("diverse-candidates", "Diverse word replacement candidates, format "
-                                 "[phrase]:[word index to replace]",
+               "[phrase]:[word index to replace]",
            &diverse_candidates);
   opts.Add("top-candidates", "Top word replacement candidates, format "
-                             "[phrase]:[word index to replace]",
+               "[phrase]:[word index to replace]",
            &top_candidates);
   opts.Add("epoch-per-file", "Treat one pass over the train file as given "
-                             "number of epochs (usefull for big datasets)",
+               "number of epochs (usefull for big datasets)",
            &n_inner_epochs);
   opts.Add("seed", "Random seed for weight initialization and sampling",
            &random_seed);
   opts.Add("threads", "Number of threads to use; optimal value is the number "
-                      "of physical cores on a CPU",
+               "of physical cores on a CPU",
            &n_threads);
+  opts.Add("create", "Create models even if they exist",
+           &create);
+  opts.Add("create-rev", "Create reverse model",
+           &create_rev);
   opts.Add("reverse-sentence", "Predict sentence words in reversed order",
            &reverse_sentence);
   opts.Add("show-progress", "Show training progress", &show_progress);
   opts.Add("show-train-entropy", "Show average entropy on train set for the "
-                                 "first thread; doesn't work for NCE",
+               "first thread; doesn't work for NCE",
            &show_train_entropy);
   opts.Add("diagonal-initialization",
            "Initialize recurrent matrix with x * I (x is the value and I is "
-           "identity matrix); must be greater then zero to have any effect",
+               "identity matrix); must be greater then zero to have any effect",
            &diagonal_initialization);
   opts.Echo();
   opts.Echo("Optimization options:");
   opts.Add("rmsprop", "RMSprop coefficient; rmsprop<0 disables RMSProp and "
-                      "rmsprop=0 equivalent to RMS",
+               "rmsprop=0 equivalent to RMS",
            &rmsprop);
   opts.Add("gradient-clipping", "Clip updates above the value",
            &gradient_clipping);
   opts.Add("learn-recurrent", "Learn hidden layer weights", &learn_recurrent);
   opts.Add("learn-embeddings", "Learn embedding weights", &learn_embeddings);
   opts.Add("bptt", "Length of truncated BPTT unfolding; set to zero to "
-                   "back-propagate through entire sentence",
+               "back-propagate through entire sentence",
            &bptt);
   opts.Add("bptt-skip",
            "Number of steps without BPTT; doesn't have any effect if bptt is 0",
@@ -963,12 +967,12 @@ int main(int argc, char **argv) {
            &maxent_l2reg);
   opts.Echo();
   opts.Echo("Early stopping options (let `ratio' be a ratio of previous epoch "
-            "validation entropy to new one):");
+                "validation entropy to new one):");
   opts.Add("stop", "If `ratio' less than `stop' then start leaning rate decay",
            &bad_ratio);
   opts.Add("lr-decay-factor", "Learning rate decay factor", &lr_decay_factor);
   opts.Add("reject-threshold", "If (whats more) `ratio' less than "
-                               "`reject-threshold' then purge the epoch",
+               "`reject-threshold' then purge the epoch",
            &awful_ratio);
   opts.Add("retry",
            "Stop training once `ratio' has hit `stop' at least `retry' times",
@@ -976,52 +980,52 @@ int main(int argc, char **argv) {
   opts.Echo();
   opts.Echo("Noise Contrastive Estimation options:");
   opts.Add("nce", "Number of noise samples; if nce is position then NCE is "
-                  "used instead of HS",
+               "used instead of HS",
            &nce_samples);
   opts.Add("nce-accurate-test", "Explicitly normalize output probabilities; "
-                                "use this option to compute actual entropy",
+               "use this option to compute actual entropy",
            &nce_accurate_test);
   opts.Add("use-cuda", "Use CUDA to compute validation entropy and test "
-                       "entropy in accurate mode, i.e. if nce-accurate-test is "
-                       "true",
+               "entropy in accurate mode, i.e. if nce-accurate-test is "
+               "true",
            &use_cuda);
   opts.Add("use-cuda-memory-efficient", "Do not copy the whole maxent layer on "
-                                        "GPU. Slower, but could be useful to "
-                                        "deal with huge maxent layers",
+               "GPU. Slower, but could be useful to "
+               "deal with huge maxent layers",
            &use_cuda_memory_efficient);
   opts.Add("nce-unigram-power", "Discount power for unigram frequency",
            &nce_unigram_power);
   opts.Add("nce-lnz", "Ln of normalization constant", &nce_lnz);
   opts.Add("nce-unigram-min-cells", "Minimum number of cells for each word in "
-                                    "unigram table (works akin to Laplacian "
-                                    "smoothing)",
+               "unigram table (works akin to Laplacian "
+               "smoothing)",
            &nce_unigram_min_cells);
   opts.Add("nce-maxent-model", "Use given the model as a noise generator; the "
-                               "model must a pure maxent model trained by the "
-                               "program",
+               "model must a pure maxent model trained by the "
+               "program",
            &nce_maxent_model_weight_file);
   opts.Echo();
   opts.Echo();
   opts.Echo("How to");
   opts.Echo("  train model with Hierarchical Softmax:");
   opts.Echo("    ./rnnlm -rnnlm model_name -train train.txt -valid "
-            "validation.txt -hidden 100");
+                "validation.txt -hidden 100");
   opts.Echo("  train model with Noise Contrastive Estimation:");
   opts.Echo("    ./rnnlm -rnnlm model_name -train train.txt -valid "
-            "validation.txt -hidden 100 -nce 22");
+                "validation.txt -hidden 100 -nce 22");
   opts.Echo("  apply model:");
   opts.Echo(
       "    ./rnnlm -rnnlm model_name -test test.txt -nce-accurate-test 1");
   opts.Echo();
   opts.Echo("All text corpora must be splitted by sentences (one sentence per "
-            "line) and tokenized (separated by whitespaces");
+                "line) and tokenized (separated by whitespaces");
   // Ignore these flags for back compability
   opts.Ignore("-nbest");
   opts.Ignore("-independent");
   // Add alias for back compability
   opts.AddAlias("bptt-block", "bptt-skip");
 
-  if (argc == 1) {
+  if (argc==1) {
     opts.PrintHelp();
     return 0;
   }
@@ -1032,15 +1036,15 @@ int main(int argc, char **argv) {
     fprintf(stderr, "ERROR model file argument (-rnnlm) is required\n");
     return 1;
   }
-  if (test_file.empty() && train_file.empty() && n_samples == 0 &&
+  if (test_file.empty() && train_file.empty() && n_samples==0 &&
       complete_phrase.empty() && diverse_candidates.empty() &&
       top_candidates.empty()) {
     fprintf(stderr, "ERROR you must provide either train file or test file or "
-                    "phrase to complete or replacement candidates\n");
+        "phrase to complete or replacement candidates\n");
     return 1;
   }
 
-  if (maxent_hash_size == 0 || maxent_order == 0) {
+  if (maxent_hash_size==0 || maxent_order==0) {
     maxent_hash_size = 0;
     maxent_order = 0;
   } else if (maxent_order > MAX_NGRAM_ORDER) {
@@ -1050,7 +1054,7 @@ int main(int argc, char **argv) {
   }
   if (bad_ratio < awful_ratio) {
     fprintf(stderr, "ERROR Value for -stop ratio must be less or equal to "
-                    "-reject-threshold ratio\n");
+        "-reject-threshold ratio\n");
     return 1;
   }
 
@@ -1077,13 +1081,22 @@ int main(int argc, char **argv) {
   const std::string rev_model_weight_file = model_vocab_file + "-rev.nnet";
   NNet *main_nnet = NULL;
   NNet *rev_nnet = NULL;
+
+  if (create) {
+    if (Exists(model_weight_file)) {
+      remove(model_weight_file.c_str());
+    }
+    if (Exists(rev_model_weight_file)) {
+      remove(rev_model_weight_file.c_str());
+    }
+  }
+
   if (has_vocab && Exists(model_weight_file)) {
     fprintf(stderr, "Restoring existing nnet\n");
     if (!Exists(rev_model_weight_file)) {
       printf("reverse model file %s is not found",
              rev_model_weight_file.c_str());
-    }
-    else {
+    } else {
       rev_nnet = new NNet(vocab, rev_model_weight_file, use_cuda,
                           use_cuda_memory_efficient);
     }
@@ -1094,9 +1107,9 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Constructing a new net (no model file is found)\n");
     if (maxent_hash_size) {
       // maxent option stores the size of the hash in millions
-      maxent_hash_size *= 1000 * 1000;
+      maxent_hash_size *= 1000*1000;
       // for back-compability
-      maxent_hash_size -= maxent_hash_size % vocab.size();
+      maxent_hash_size -= maxent_hash_size%vocab.size();
     }
     NNetConfig cfg = {
         layer_size,
@@ -1110,10 +1123,32 @@ int main(int argc, char **argv) {
         layer_type,
         CharEmbeddingFactory::create()};
     main_nnet = new NNet(vocab, cfg, use_cuda, use_cuda_memory_efficient);
+
+    if(create_rev) {
+      NNetConfig cfg_rev = {
+          layer_size,
+          layer_count,
+          maxent_hash_size,
+          maxent_order,
+          (nce_samples > 0),
+          static_cast<Real>(nce_lnz),
+          !reverse_sentence,
+          hs_arity,
+          layer_type,
+          CharEmbeddingFactory::create()};
+      rev_nnet = new NNet(vocab, cfg_rev, use_cuda, use_cuda_memory_efficient);
+    }
+
     if (diagonal_initialization > 0) {
       main_nnet->ApplyDiagonalInitialization(diagonal_initialization);
+      if(rev_nnet) {
+        rev_nnet->ApplyDiagonalInitialization(diagonal_initialization);
+      }
     }
     main_nnet->Save(model_weight_file);
+    if(rev_nnet) {
+      rev_nnet->Save(rev_model_weight_file);
+    }
   }
 
   MixtureNet mn(main_nnet, rev_nnet, false);
@@ -1121,7 +1156,7 @@ int main(int argc, char **argv) {
   if (show_train_entropy &&
       (main_nnet->cfg.use_nce > 0 || main_nnet->cfg.maxent_order > 0)) {
     fprintf(stderr, "WARNING --show-train-entropy could be used only for HS "
-                    "based models without maxent\n");
+        "based models without maxent\n");
     show_train_entropy = false;
   }
 
@@ -1146,8 +1181,13 @@ int main(int argc, char **argv) {
     // Train mode
     TrainLM(model_weight_file, train_file, valid_file, show_progress,
             show_train_entropy, n_threads, n_inner_epochs, main_nnet);
+    if(rev_nnet) {
+      TrainLM(rev_model_weight_file, train_file, valid_file, show_progress,
+              show_train_entropy, n_threads, n_inner_epochs, rev_nnet);
+    }
   }
 
   delete main_nnet;
+  if(rev_nnet) delete rev_nnet;
   return 0;
 }

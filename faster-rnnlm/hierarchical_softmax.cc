@@ -28,18 +28,18 @@ static const int kDynamic = 0;
 // Element (i, j) is an index of j-th child of (leaf_count + i)-th node
 Tree::Tree(int leaf_count, const vector<int> &children, int arity)
     : leaf_count_(leaf_count), arity_(arity), root_node_(-1) // to be filled
-      ,
+    ,
       tree_height_(-1) // to be filled
-      ,
+    ,
       children_(children), path_lengths_(leaf_count),
-      points_(leaf_count * (MAX_HSTREE_DEPTH + 1)),
-      branches_(leaf_count * MAX_HSTREE_DEPTH) {
-  const int extra_node_count = (leaf_count - 1) / (arity_ - 1);
+      points_(leaf_count*(MAX_HSTREE_DEPTH + 1)),
+      branches_(leaf_count*MAX_HSTREE_DEPTH) {
+  const int extra_node_count = (leaf_count - 1)/(arity_ - 1);
   const int node_count = leaf_count + extra_node_count;
   vector<int> branch_id(node_count);
   vector<int> parent_node(node_count);
 
-  if ((leaf_count - 1) % (arity_ - 1) != 0) {
+  if ((leaf_count - 1)%(arity_ - 1)!=0) {
     fprintf(stderr, "Cannot build a full tree of arity %d from %d leaf nodes\n",
             arity_, leaf_count);
     exit(1);
@@ -50,7 +50,7 @@ Tree::Tree(int leaf_count, const vector<int> &children, int arity)
   // build parents by children
   for (int parent = 0; parent < extra_node_count; parent++) {
     for (int branch = 0; branch < arity_; ++branch) {
-      int child_index = children_[parent * arity_ + branch];
+      int child_index = children_[parent*arity_ + branch];
       if (child_index >= node_count) {
         fprintf(stderr, "ERROR bad child index (%d)\n", child_index);
         exit(1);
@@ -65,8 +65,8 @@ Tree::Tree(int leaf_count, const vector<int> &children, int arity)
     int path_nodes[MAX_HSTREE_DEPTH];
     int path_branches[MAX_HSTREE_DEPTH];
     int path_length = 0;
-    for (int node = leaf_node; node != root_node_; node = parent_node[node]) {
-      if (path_length == MAX_HSTREE_DEPTH) {
+    for (int node = leaf_node; node!=root_node_; node = parent_node[node]) {
+      if (path_length==MAX_HSTREE_DEPTH) {
         fprintf(stderr,
                 "ERROR Cannot build a tree with height greater than %d\n",
                 MAX_HSTREE_DEPTH);
@@ -99,12 +99,12 @@ HSTree::HSTree(const Vocabulary &vocab, int layer_size,
                CharEmbedding &char_embedding, int arity,
                const vector<int> &children)
     : vocab_(vocab), layer_size(layer_size),
-      syn_size(static_cast<size_t>(layer_size) * vocab.size()),
+      syn_size(static_cast<size_t>(layer_size)*vocab.size()),
       char_embedding_(char_embedding),
-      weights_(vocab.size(), layer_size + char_embedding.size()),
+      weights_(vocab.size(), layer_size + char_embedding.size() + 1),
       tree_(new Tree(vocab.size(), children, arity)) {
   if (layer_size) {
-    InitNormal(1. / std::sqrt(layer_size + char_embedding.size()), &weights_);
+    InitNormal(1./std::sqrt(layer_size + char_embedding.size()), &weights_);
   }
 
   fprintf(stderr, "Contructed HS: arity=%d, height=%d\n", tree_->GetArity(),
@@ -113,10 +113,10 @@ HSTree::HSTree(const Vocabulary &vocab, int layer_size,
 
 HSTree *HSTree::CreateHuffmanTree(const Vocabulary &vocab, int layer_size,
                                   CharEmbedding &char_embedding, int arity) {
-  const int extra_node_count = (vocab.size() - 1) / (arity - 1);
+  const int extra_node_count = (vocab.size() - 1)/(arity - 1);
   const int node_count = vocab.size() + extra_node_count;
   vector<int64_t> weight(node_count + 2);
-  vector<int> children(extra_node_count * arity);
+  vector<int> children(extra_node_count*arity);
 
   for (int i = 0; i < vocab.size(); i++) {
     weight[i] = vocab.GetWordFrequency(i);
@@ -148,7 +148,7 @@ HSTree *HSTree::CreateHuffmanTree(const Vocabulary &vocab, int layer_size,
     for (int branch = 0; branch < arity; ++branch) {
       int child_index = min_indices[branch];
       weight[new_node] += weight[child_index];
-      children[(new_node - vocab.size()) * arity + branch] = child_index;
+      children[(new_node - vocab.size())*arity + branch] = child_index;
     }
   }
 
@@ -158,14 +158,14 @@ HSTree *HSTree::CreateHuffmanTree(const Vocabulary &vocab, int layer_size,
 HSTree *HSTree::CreateRandomTree(const Vocabulary &vocab, int layer_size,
                                  CharEmbedding &char_embedding, int arity,
                                  uint64_t seed) {
-  const int extra_node_count = (vocab.size() - 1) / (arity - 1);
-  vector<int> children(extra_node_count * arity);
-  for (int i = 0; i < extra_node_count * arity; ++i) {
+  const int extra_node_count = (vocab.size() - 1)/(arity - 1);
+  vector<int> children(extra_node_count*arity);
+  for (int i = 0; i < extra_node_count*arity; ++i) {
     children[i] = i;
   }
   if (extra_node_count > 0) {
     for (int i = 0; i < vocab.size(); i++) {
-      int j = GetNextRandom(&seed) % (i + 1);
+      int j = GetNextRandom(&seed)%(i + 1);
       std::swap(children[i], children[j]);
     }
   }
@@ -204,29 +204,30 @@ int HSTree::DetectEffectiveMaxentOrder(WordIndex target_word,
 //
 // feature_hashes is an array of offsets for the target_word
 // feature_hashes must contain at least maxent_order elements
-template <int kArity>
+template<int kArity>
 inline void
 CalculateNodeChildrenScores(const HSTree *hs, int node, const Real *hidden,
                             const uint64_t *feature_hashes, int maxent_order,
                             const MaxEnt *maxent, Real *branch_scores,
                             const std::string &curr_chars) {
-  const int arity = (kArity == kDynamic) ? hs->tree_->GetArity() : kArity;
+  const int arity = (kArity==kDynamic) ? hs->tree_->GetArity() : kArity;
   for (int branch = 0; branch < arity - 1; ++branch) {
     branch_scores[branch] = 0;
     int child_offset = hs->tree_->GetChildOffset(node, branch);
     const Real *sm_embedding = hs->weights_.row(child_offset).data();
     for (int i = 0; i < hs->layer_size; ++i) {
-      branch_scores[branch] += hidden[i] * sm_embedding[i];
+      branch_scores[branch] += hidden[i]*sm_embedding[i];
     }
     auto char_embedding = hs->char_embedding_.get_embedding(curr_chars);
     for (int i = 0; i < hs->char_embedding_.size(); ++i) {
       branch_scores[branch] +=
-          char_embedding[i] * sm_embedding[i + hs->layer_size];
+          char_embedding[i]*sm_embedding[i + hs->layer_size];
     }
     for (int order = 0; order < maxent_order; ++order) {
       uint64_t maxent_index = feature_hashes[order] + child_offset;
       branch_scores[branch] += maxent->GetValue(maxent_index);
     }
+    branch_scores[branch] += sm_embedding[hs->char_embedding_.size() + hs->layer_size];
   }
 }
 
@@ -234,24 +235,25 @@ CalculateNodeChildrenScores(const HSTree *hs, int node, const Real *hidden,
 //
 // If kStaticSize != kDynamic, then the array would be static,
 // otherwise - dynamic
-template <class T, int kStaticSize> class MaybeStaticArray {
-public:
+template<class T, int kStaticSize>
+class MaybeStaticArray {
+ public:
   explicit MaybeStaticArray(int dynamic_size)
-      : dynamic_array((kStaticSize == kDynamic) ? new T[dynamic_size] : NULL) {}
+      : dynamic_array((kStaticSize==kDynamic) ? new T[dynamic_size] : NULL) {}
 
   ~MaybeStaticArray() {
-    if (kStaticSize == kDynamic) {
+    if (kStaticSize==kDynamic) {
       delete dynamic_array;
     }
   }
 
-  T *data() { return (kStaticSize == kDynamic) ? dynamic_array : static_array; }
+  T *data() { return (kStaticSize==kDynamic) ? dynamic_array : static_array; }
 
   T &operator[](size_t idx) { return data()[idx]; }
 
-private:
+ private:
   T *dynamic_array;
-  T static_array[(kStaticSize == kDynamic) ? 0 : kStaticSize];
+  T static_array[(kStaticSize==kDynamic) ? 0 : kStaticSize];
 };
 
 // Do a forward propagation for a softmax over children of the current node
@@ -260,12 +262,12 @@ private:
 // state must be an array of state_size elements
 // feature_hashes is an array of offsets for the target_word
 // feature_hashes must contain at least maxent_order elements
-template <int kArity>
+template<int kArity>
 inline void PropagateNodeForward(const HSTree *hs, int node, const Real *hidden,
                                  const uint64_t *feature_hashes,
                                  int maxent_order, const MaxEnt *maxent,
                                  double *state, const std::string &curr_chars) {
-  const int arity = (kArity == kDynamic) ? hs->tree_->GetArity() : kArity;
+  const int arity = (kArity==kDynamic) ? hs->tree_->GetArity() : kArity;
   MaybeStaticArray<Real, kArity> tmp(arity);
   CalculateNodeChildrenScores<kArity>(hs, node, hidden, feature_hashes,
                                       maxent_order, maxent, tmp.data(),
@@ -290,7 +292,7 @@ inline void PropagateNodeForward(const HSTree *hs, int node, const Real *hidden,
   }
 }
 
-template <int kArity>
+template<int kArity>
 inline void PropagateNodeForwardByDepth(const HSTree *hs, WordIndex target_word,
                                         const Real *hidden, int depth,
                                         const uint64_t *feature_hashes,
@@ -312,7 +314,7 @@ inline void PropagateNodeForwardByDepth(const HSTree *hs, WordIndex target_word,
 // state must be an array of state_size elements
 // feature_hashes is an array of offsets for the target_word
 // feature_hashes must contain at least maxent_order elements
-template <int kArity>
+template<int kArity>
 inline void PropagateNodeBackward(HSTree *hs, WordIndex target_word, int depth,
                                   const uint64_t *feature_hashes,
                                   int maxent_order, Real lrate,
@@ -324,11 +326,11 @@ inline void PropagateNodeBackward(HSTree *hs, WordIndex target_word, int depth,
   const int selected_branch =
       hs->tree_->GetBranchPathToLead(target_word)[depth];
   // gradient
-  const int arity = (kArity == kDynamic) ? hs->tree_->GetArity() : kArity;
-  const int kArityMinusOne = (kArity == kDynamic) ? kDynamic : (kArity - 1);
+  const int arity = (kArity==kDynamic) ? hs->tree_->GetArity() : kArity;
+  const int kArityMinusOne = (kArity==kDynamic) ? kDynamic : (kArity - 1);
   MaybeStaticArray<Real, kArityMinusOne> branch_gradient(arity - 1);
   for (int branch = 0; branch < arity - 1; ++branch) {
-    const int match = (branch == selected_branch);
+    const int match = (branch==selected_branch);
     // gradient of logsoftmax
     branch_gradient[branch] = (match - static_cast<Real>(state[branch]));
   }
@@ -341,25 +343,30 @@ inline void PropagateNodeBackward(HSTree *hs, WordIndex target_word, int depth,
 
     // Propagate errors output -> hidden
     for (int i = 0; i < hs->layer_size; ++i) {
-      hidden_grad[i] += grad * sm_embedding[i];
+      hidden_grad[i] += grad*sm_embedding[i];
     }
 
     // Learn weights hidden -> output
     for (int i = 0; i < hs->layer_size; ++i) {
-      Real update = grad * hidden[i];
+      Real update = grad*hidden[i];
       sm_embedding[i] *= (1 - l2reg);
-      sm_embedding[i] += lrate * Clip(update, gradient_clipping);
+      sm_embedding[i] += lrate*Clip(update, gradient_clipping);
     }
 
     // Learn weights char emb -> output
     auto word = std::string(hs->vocab_.GetWordByIndex(target_word));
     auto char_emb = hs->char_embedding_.get_embedding(word);
     for (int i = 0; i < hs->char_embedding_.size(); ++i) {
-      Real update = grad * char_emb[i];
+      Real update = grad*char_emb[i];
       sm_embedding[i + hs->layer_size] *= (1 - l2reg);
       sm_embedding[i + hs->layer_size] +=
-          lrate * Clip(update, gradient_clipping);
+          lrate*Clip(update, gradient_clipping);
     }
+
+    Real update = grad;
+    sm_embedding[hs->char_embedding_.size() + hs->layer_size] *= (1 - l2reg);
+    sm_embedding[hs->char_embedding_.size() + hs->layer_size] +=
+        lrate*Clip(update, gradient_clipping);
 
     // update maxent weights
     Real maxent_grad = Clip(grad, gradient_clipping);
@@ -375,7 +382,7 @@ inline void PropagateNodeBackward(HSTree *hs, WordIndex target_word, int depth,
 //
 // if kArity == kDynamic then _arity field of the Tree is used
 // otherwised it is assumed that _arity is equal to kArity
-template <int kArity>
+template<int kArity>
 Real PropagateForwardAndBackwardReal(
     HSTree *hs, bool calculate_probability, WordIndex target_word,
     const uint64_t *feature_hashes, int maxent_order, Real lrate,
@@ -410,7 +417,7 @@ Real HSTree::PropagateForwardAndBackward(
     Real maxent_lrate, Real l2reg, Real maxent_l2reg, Real gradient_clipping,
     const Real *hidden, Real *hidden_grad, MaxEnt *maxent) {
 
-  if (tree_->GetArity() == 2) {
+  if (tree_->GetArity()==2) {
     return PropagateForwardAndBackwardReal<2>(
         this, calculate_probability, target_word, feature_hashes, maxent_order,
         lrate, maxent_lrate, l2reg, maxent_l2reg, gradient_clipping, hidden,
@@ -500,7 +507,7 @@ void HSTree::SampleWord(const uint64_t *feature_hashes, int maxent_order,
 
     double f = 0.;
     int selected_branch = arity - 1;
-    Real random = rand() / (Real)RAND_MAX;
+    Real random = rand()/(Real) RAND_MAX;
     for (int branch = 0; branch < arity - 1; ++branch) {
       f += probabilities[branch];
       if (f > random) {
