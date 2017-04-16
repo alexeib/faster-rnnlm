@@ -15,7 +15,7 @@ DirData createDirData(NNet *net, const std::vector<WordIndex> &wids, int pos) {
 
 std::vector<WordIndex>
 DiverseCandidateMaker::DiverseCandidates(const std::vector<WordIndex> &wids, int pos, int target_number,
-                                         bool dynamic_maxent_prunning, float threshold) const {
+                                         bool dynamic_maxent_prunning, float threshold, std::string &curr_word) const {
   auto tree = mn_.GetHSTree();
   if (tree->GetArity()!=2) throw "expected tree with arity = 2";
   int target_depth = ceil(log2(target_number)) - 1;
@@ -28,8 +28,6 @@ DiverseCandidateMaker::DiverseCandidates(const std::vector<WordIndex> &wids, int
 
   auto forw = createDirData(mn_.GetForwardNet(), paddedWids, pos + 1);
   auto rev = createDirData(mn_.GetReverseNet(), reverseWids, wids.size() - pos);
-
-  auto curr_word = std::string(forw.nnet->vocab.GetWordByIndex(wids[pos]));
 
   return DiverseCandidates(tree->GetRootNode(), 0, target_depth, dynamic_maxent_prunning,
                            wids.size(), pos, forw, rev, curr_word, threshold);

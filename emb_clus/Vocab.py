@@ -1,8 +1,10 @@
+import numpy as np
+
 class VocabEntry:
     def __init__(self, index, word, embeddings):
         self.index = index
         self.word = word
-        self.embeddings = list(map(float, embeddings))
+        self.embeddings = np.array(list(map(float, embeddings)))
 
 
 class Vocab:

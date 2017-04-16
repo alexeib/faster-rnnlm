@@ -571,15 +571,15 @@ void DiverseCandidates(MixtureNet &mn, const std::string s) {
 
   auto wids = mn.GetWids(input[0]);
   printf("Original: %s | %f\n", input[0].c_str(),
-         mn.Log10WordProbability(wids, idx));
+         mn.Log10WordProbability(wids, idx, &words[idx]));
 
   std::vector<std::tuple<std::string, Real>> candidatesWithProb;
-  auto candidates = dcm.DiverseCandidates(wids, idx, 10, kDynamicMaxentPruning, threshold);
+  auto candidates = dcm.DiverseCandidates(wids, idx, 10, kDynamicMaxentPruning, threshold, words[idx]);
   auto sen = wids;
   for (auto c : candidates) {
     sen[idx] = c;
     candidatesWithProb.emplace_back(mn.GetWordByIndex(c),
-                                    mn.Log10WordProbability(sen, idx));
+                                    mn.Log10WordProbability(sen, idx, &words[idx]));
   }
 
   std::sort(candidatesWithProb.begin(), candidatesWithProb.end(),

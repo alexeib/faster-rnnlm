@@ -66,7 +66,7 @@ class SquashedLm1bCharEmbedding : public CharEmbedding {
 class CharEmbeddingFactory {
  public:
   static std::shared_ptr<CharEmbedding> create() {
-    return std::shared_ptr<CharEmbedding>(new NoopCharEmbedding());
+    return std::shared_ptr<CharEmbedding>(new SquashedLm1bCharEmbedding());
   }
 };
 

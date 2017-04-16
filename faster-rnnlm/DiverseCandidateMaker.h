@@ -26,7 +26,7 @@ public:
 
     std::vector<WordIndex>
     DiverseCandidates(const std::vector<WordIndex>& wids, int pos, int target_number,
-            bool dynamic_maxent_prunning, float threshold) const;
+            bool dynamic_maxent_prunning, float threshold, std::string& curr_word) const;
 
 private:
     const MixtureNet& mn_;
