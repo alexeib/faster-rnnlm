@@ -16,6 +16,7 @@
 
 #include <string>
 #include <vector>
+#include <fstream>
 
 #include "DiverseCandidateMaker.h"
 #include "MixtureNet.h"
@@ -345,7 +346,7 @@ void *RunThread(void *ptr) {
         WordIndex last_word = sen[input];
         nnet->embeddings.row(last_word) *= (1 - l2reg);
         nnet->embeddings.row(last_word).noalias() +=
-            input_grad.row(input) * task.lrate;
+            input_grad.row(input)*task.lrate;
       }
     }
 
@@ -376,8 +377,9 @@ void TrainLM(const std::string &model_weight_file,
     if (nce_maxent_model_weight_file[0]!=0) {
       const bool kUseCuda = true;
       const bool kUseCudaMemoryEfficient = true;
+      std::vector<int> e;
       noise_net = new NNet(nnet->vocab, nce_maxent_model_weight_file, kUseCuda,
-                           kUseCudaMemoryEfficient);
+                           kUseCudaMemoryEfficient, e);
       if (noise_net->cfg.layer_size!=0) {
         fprintf(stderr, "ERROR: Cannot initialize HSMaxEntNoiseGenerator "
             "(layer size != 0)\n");
@@ -551,15 +553,16 @@ void TrainLM(const std::string &model_weight_file,
 void DiverseCandidates(MixtureNet &mn, const std::string s) {
   std::vector<std::string> input;
   split(s, ':', std::back_inserter(input));
-  if (input.size()!=2) {
-    printf("expected <phrase>:<index>, but got %s", s);
+  if (input.size()!=3) {
+    printf("expected <phrase>:<index>:<threshold>, but got %s", s.c_str());
     exit(1);
   }
   auto idx = atoi(input[1].c_str());
+  auto threshold = atof(input[2].c_str());
   std::vector<std::string> words;
   split(input[0], ' ', std::back_inserter(words));
   if (words.size() <= idx) {
-    printf("word index %d is out of range for string %s", input[1], input[0]);
+    printf("word index %d is out of range for string %s", idx, input[0].c_str());
     exit(1);
   }
 
@@ -571,7 +574,7 @@ void DiverseCandidates(MixtureNet &mn, const std::string s) {
          mn.Log10WordProbability(wids, idx));
 
   std::vector<std::tuple<std::string, Real>> candidatesWithProb;
-  auto candidates = dcm.DiverseCandidates(wids, idx, 10, kDynamicMaxentPruning);
+  auto candidates = dcm.DiverseCandidates(wids, idx, 10, kDynamicMaxentPruning, threshold);
   auto sen = wids;
   for (auto c : candidates) {
     sen[idx] = c;
@@ -861,6 +864,19 @@ void SampleFromLM(NNet *nnet, int seed, int n_samples,
   delete updater;
 }
 
+std::vector<int> read_tree(std::string &tree_file) {
+  std::vector<int> children;
+  if(!tree_file.empty()) {
+    std::ifstream infile(tree_file);
+    std::string line;
+    while (std::getline(infile, line)) {
+      children.emplace_back(atoi(line.c_str()));
+    }
+  }
+  return children;
+}
+
+std::vector<int> read_tree(std::string &tree_file);
 int main(int argc, char **argv) {
 #ifdef DETECT_FPE
   feenableexcept(FE_ALL_EXCEPT & ~FE_INEXACT & ~FE_UNDERFLOW);
@@ -871,7 +887,7 @@ int main(int argc, char **argv) {
   uint64_t maxent_hash_size = 0;
   int layer_count = 1;
   std::string model_vocab_file, test_file, train_file, valid_file,
-      complete_phrase, diverse_candidates, top_candidates;
+      complete_phrase, diverse_candidates, top_candidates, dump_embeddings_file, tree_file;
   bool use_cuda = kHaveCudaSupport;
   bool use_cuda_memory_efficient = false;
   bool reverse_sentence = false, create = false, create_rev = false;
@@ -890,6 +906,7 @@ int main(int argc, char **argv) {
   opts.Add("rnnlm", "Path to model file (mandatory)", &model_vocab_file);
   opts.Add("train", "Train file", &train_file);
   opts.Add("valid", "Validation file (used for early stopping)", &valid_file);
+  opts.Add("tree-file", "Tree (children) file", &tree_file);
   opts.Add("generate-samples",
            "Number of sentences to generate in sampling mode", &n_samples);
   opts.Add("generate-temperature",
@@ -931,6 +948,8 @@ int main(int argc, char **argv) {
            &create_rev);
   opts.Add("reverse-sentence", "Predict sentence words in reversed order",
            &reverse_sentence);
+  opts.Add("dump-embeddings", "Dumb vocab + embeddings in human readable format into specified file",
+           &dump_embeddings_file);
   opts.Add("show-progress", "Show training progress", &show_progress);
   opts.Add("show-train-entropy", "Show average entropy on train set for the "
                "first thread; doesn't work for NCE",
@@ -1038,7 +1057,7 @@ int main(int argc, char **argv) {
   }
   if (test_file.empty() && train_file.empty() && n_samples==0 &&
       complete_phrase.empty() && diverse_candidates.empty() &&
-      top_candidates.empty()) {
+      top_candidates.empty() && dump_embeddings_file.empty()) {
     fprintf(stderr, "ERROR you must provide either train file or test file or "
         "phrase to complete or replacement candidates\n");
     return 1;
@@ -1082,6 +1101,8 @@ int main(int argc, char **argv) {
   NNet *main_nnet = NULL;
   NNet *rev_nnet = NULL;
 
+  std::vector<int> tree_children = read_tree(tree_file);
+
   if (create) {
     if (Exists(model_weight_file)) {
       remove(model_weight_file.c_str());
@@ -1098,10 +1119,10 @@ int main(int argc, char **argv) {
              rev_model_weight_file.c_str());
     } else {
       rev_nnet = new NNet(vocab, rev_model_weight_file, use_cuda,
-                          use_cuda_memory_efficient);
+                          use_cuda_memory_efficient, tree_children);
     }
     main_nnet =
-        new NNet(vocab, model_weight_file, use_cuda, use_cuda_memory_efficient);
+        new NNet(vocab, model_weight_file, use_cuda, use_cuda_memory_efficient, tree_children);
 
   } else {
     fprintf(stderr, "Constructing a new net (no model file is found)\n");
@@ -1122,9 +1143,9 @@ int main(int argc, char **argv) {
         hs_arity,
         layer_type,
         CharEmbeddingFactory::create()};
-    main_nnet = new NNet(vocab, cfg, use_cuda, use_cuda_memory_efficient);
+    main_nnet = new NNet(vocab, cfg, use_cuda, use_cuda_memory_efficient, tree_children);
 
-    if(create_rev) {
+    if (create_rev) {
       NNetConfig cfg_rev = {
           layer_size,
           layer_count,
@@ -1136,17 +1157,17 @@ int main(int argc, char **argv) {
           hs_arity,
           layer_type,
           CharEmbeddingFactory::create()};
-      rev_nnet = new NNet(vocab, cfg_rev, use_cuda, use_cuda_memory_efficient);
+      rev_nnet = new NNet(vocab, cfg_rev, use_cuda, use_cuda_memory_efficient, tree_children);
     }
 
     if (diagonal_initialization > 0) {
       main_nnet->ApplyDiagonalInitialization(diagonal_initialization);
-      if(rev_nnet) {
+      if (rev_nnet) {
         rev_nnet->ApplyDiagonalInitialization(diagonal_initialization);
       }
     }
     main_nnet->Save(model_weight_file);
-    if(rev_nnet) {
+    if (rev_nnet) {
       rev_nnet->Save(rev_model_weight_file);
     }
   }
@@ -1177,17 +1198,19 @@ int main(int argc, char **argv) {
     DiverseCandidates(mn, diverse_candidates);
   } else if (!top_candidates.empty()) {
     TopCandidates(mn, top_candidates);
+  } else if (!dump_embeddings_file.empty()) {
+    main_nnet->dump_embeddings(dump_embeddings_file);
   } else {
     // Train mode
     TrainLM(model_weight_file, train_file, valid_file, show_progress,
             show_train_entropy, n_threads, n_inner_epochs, main_nnet);
-    if(rev_nnet) {
+    if (rev_nnet) {
       TrainLM(rev_model_weight_file, train_file, valid_file, show_progress,
               show_train_entropy, n_threads, n_inner_epochs, rev_nnet);
     }
   }
 
   delete main_nnet;
-  if(rev_nnet) delete rev_nnet;
+  if (rev_nnet) delete rev_nnet;
   return 0;
 }

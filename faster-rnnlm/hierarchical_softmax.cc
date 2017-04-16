@@ -156,6 +156,14 @@ HSTree *HSTree::CreateHuffmanTree(const Vocabulary &vocab, int layer_size,
   return new HSTree(vocab, layer_size, char_embedding, arity, children);
 }
 
+HSTree *HSTree::CreateExistingTree(const Vocabulary &vocab,
+                                   int layer_size,
+                                   CharEmbedding &char_embedding,
+                                   int arity,
+                                   std::vector<int> &tree_children) {
+  return new HSTree(vocab, layer_size, char_embedding, arity, tree_children);
+}
+
 HSTree *HSTree::CreateRandomTree(const Vocabulary &vocab, int layer_size,
                                  CharEmbedding &char_embedding, int arity,
                                  uint64_t seed) {

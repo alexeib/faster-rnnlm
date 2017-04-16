@@ -26,7 +26,7 @@ public:
 
     std::vector<WordIndex>
     DiverseCandidates(const std::vector<WordIndex>& wids, int pos, int target_number,
-            bool dynamic_maxent_prunning) const;
+            bool dynamic_maxent_prunning, float threshold) const;
 
 private:
     const MixtureNet& mn_;
@@ -34,7 +34,7 @@ private:
     std::vector<WordIndex>
     DiverseCandidates(int node, int curr_depth, int target_depth, bool dynamic_maxent_prunning,
             int sentence_length, int word_pos, const DirData& forward, const DirData& reverse,
-            const std::string& curr_word) const;
+            const std::string& curr_word, float threshold) const;
 };
 
 #endif //FASTER_RNNLM_DIVERSECANDIDATEMAKER_H
