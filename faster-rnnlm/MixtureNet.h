@@ -28,6 +28,8 @@ class MixtureNet {
 
   Real Log10WordProbability(const std::vector<WordIndex> &wids, int wordPos, std::string *currWord = nullptr);
 
+  Real Log10PhraseProbability(const std::string &sentence);
+
   const Tree *GetHSTree() const { return forward_.nnet->softmax_layer->GetTree(); }
 
   NNet *GetForwardNet() const { return forward_.nnet; }
@@ -35,6 +37,8 @@ class MixtureNet {
   NNet *GetReverseNet() const { return reverse_.nnet; }
 
   std::string GetWordByIndex(WordIndex idx) const { return forward_.nnet->vocab.GetWordByIndex(idx); }
+  WordIndex GetIndexByWord(const char* word) const { return forward_.nnet->vocab.GetIndexByWord(word); }
+  WordIndex GetIndexByWord(std::string& word) const { return forward_.nnet->vocab.GetIndexByWord(word.c_str()); }
 
   const Vocabulary &GetVocabulary() const { return forward_.nnet->vocab; }
 

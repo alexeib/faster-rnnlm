@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <chrono>
+#include <iostream>
 
 #include "DiverseCandidateMaker.h"
 #include "MixtureNet.h"
@@ -553,11 +555,12 @@ void TrainLM(const std::string &model_weight_file,
 void DiverseCandidates(MixtureNet &mn, const std::string s) {
   std::vector<std::string> input;
   split(s, ':', std::back_inserter(input));
-  if (input.size()!=3) {
-    printf("expected <phrase>:<index>:<threshold>, but got %s", s.c_str());
+  if (input.size()!=3 && input.size()!=4) {
+    printf("expected <phrase>:<index>:<threshold>[:num], but got %s", s.c_str());
     exit(1);
   }
   auto idx = atoi(input[1].c_str());
+  int num = input.size()==4 ? atoi(input[3].c_str()) : 10;
   auto threshold = atof(input[2].c_str());
   std::vector<std::string> words;
   split(input[0], ' ', std::back_inserter(words));
@@ -574,7 +577,7 @@ void DiverseCandidates(MixtureNet &mn, const std::string s) {
          mn.Log10WordProbability(wids, idx, &words[idx]));
 
   std::vector<std::tuple<std::string, Real>> candidatesWithProb;
-  auto candidates = dcm.DiverseCandidates(wids, idx, 10, kDynamicMaxentPruning, threshold, words[idx]);
+  auto candidates = dcm.DiverseCandidates(wids, idx, num, kDynamicMaxentPruning, threshold, words[idx]);
   auto sen = wids;
   for (auto c : candidates) {
     sen[idx] = c;
@@ -590,18 +593,18 @@ void DiverseCandidates(MixtureNet &mn, const std::string s) {
   }
 }
 
-void TopCandidates(MixtureNet &mn, const std::string s) {
+void TopCandidates(MixtureNet &mn, const std::string s, int num = 10) {
   std::vector<std::string> input;
   split(s, ':', std::back_inserter(input));
   if (input.size() < 2) {
-    printf("expected <phrase>:<index>[:words], but got %s", s);
+    printf("expected <phrase>:<index>[:words], but got %s", s.c_str());
     exit(1);
   }
   auto idx = atoi(input[1].c_str());
   std::vector<std::string> words;
   split(input[0], ' ', std::back_inserter(words));
   if (words.size() <= idx) {
-    printf("word index %d is out of range for string %s", input[1], input[0]);
+    printf("word index %d is out of range for string %s", input[1], input[0].c_str());
     exit(1);
   }
 
@@ -632,7 +635,7 @@ void TopCandidates(MixtureNet &mn, const std::string s) {
     }
   }
 
-  std::partial_sort(candidatesWithProb.begin(), candidatesWithProb.begin() + 10,
+  std::partial_sort(candidatesWithProb.begin(), candidatesWithProb.begin() + num,
                     candidatesWithProb.end(), [](auto &a, auto &b) {
         return std::get<1>(a) > std::get<1>(b);
       });
@@ -646,35 +649,40 @@ void TopCandidates(MixtureNet &mn, const std::string s) {
   }
 }
 
-void NextCandidates(NNet *nnet, std::string prefix) {
+void NextCandidates(NNet *net, std::string &s) {
   std::vector<WordIndex> wids;
-  {
-    std::vector<std::string> tokens;
-    split(prefix, ' ', std::back_inserter(tokens));
+  std::vector<std::string> input;
+  split(s, ':', std::back_inserter(input));
+  if (input.size()!=2) {
+    printf("expected <phrase>:<num>, but got %s", s.c_str());
+    exit(1);
+  }
+  int num = atoi(input[1].c_str());
+  std::vector<std::string> words;
+  split(input[0], ' ', std::back_inserter(words));
 
-    for (auto &t : tokens) {
-      WordIndex wid = nnet->vocab.GetIndexByWord(t.c_str());
-      if (wid==0) {
-        break;
-      }
-      if (wid==Vocabulary::kWordOOV) {
-        wid = nnet->vocab.GetIndexByWord("<unk>");
-        if (wid==Vocabulary::kWordOOV) {
-          fprintf(stderr, "ERROR Word '%s' is not found in vocabulary;"
-                      " moreover, <unk> is not found as well\n",
-                  t);
-          exit(1);
-        }
-      }
-      wids.push_back(wid);
+  for (auto &t : words) {
+    WordIndex wid = net->vocab.GetIndexByWord(t.c_str());
+    if (wid==0) {
+      break;
     }
+    if (wid==Vocabulary::kWordOOV) {
+      wid = net->vocab.GetIndexByWord("<unk>");
+      if (wid==Vocabulary::kWordOOV) {
+        fprintf(stderr, "ERROR Word '%s' is not found in vocabulary;"
+                    " moreover, <unk> is not found as well\n",
+                t);
+        exit(1);
+      }
+    }
+    wids.push_back(wid);
   }
 
   printf("Format: <prefix> | <generated> | <log10prob(generated)>\n");
 
-  std::vector<double> probs(nnet->vocab.size());
-  IRecUpdater *updater = nnet->rec_layer->CreateUpdater();
-  PropagateForward(nnet, wids.data(), wids.size(), updater);
+  std::vector<double> probs(net->vocab.size());
+  IRecUpdater *updater = net->rec_layer->CreateUpdater();
+  PropagateForward(net, wids.data(), wids.size(), updater);
 
   std::vector<std::tuple<std::string, Real>> candidates;
   std::vector<WordIndex> sen = wids;
@@ -684,28 +692,28 @@ void NextCandidates(NNet *nnet, std::string prefix) {
   const RowMatrix &output = updater->GetOutputMatrix();
 
   // Calculate (unnormalized) probabilities for each word to follow
-  if (!nnet->cfg.use_nce) {
-    for (int wid = 0; wid < nnet->vocab.size(); ++wid) {
-      std::string word(nnet->vocab.GetWordByIndex(wid));
+  if (!net->cfg.use_nce) {
+    for (int wid = 0; wid < net->vocab.size(); ++wid) {
+      std::string word(net->vocab.GetWordByIndex(wid));
       sen.back() = wid;
       uint64_t ngram_hashes[MAX_NGRAM_ORDER];
       bool kDynamicMaxentPruning = false;
       int maxent_present =
-          CalculateMaxentHashIndices(nnet, sen.data(), target, ngram_hashes);
+          CalculateMaxentHashIndices(net, sen.data(), target, ngram_hashes);
       probs[wid] =
-          pow(10., nnet->softmax_layer->CalculateLog10Probability(
+          pow(10., net->softmax_layer->CalculateLog10Probability(
               sen[target], ngram_hashes, maxent_present,
               kDynamicMaxentPruning, output.row(target - 1).data(),
-              &nnet->maxent_layer, word));
+              &net->maxent_layer, word));
     }
   } else {
-    for (int wid = 0; wid < nnet->vocab.size(); ++wid) {
+    for (int wid = 0; wid < net->vocab.size(); ++wid) {
       sen.back() = wid;
       uint64_t ngram_hashes[MAX_NGRAM_ORDER];
       int maxent_present =
-          CalculateMaxentHashIndices(nnet, sen.data(), target, ngram_hashes);
-      probs[wid] = exp(nnet->nce->CalculateWordLnScore(
-          output.row(target - 1), &nnet->maxent_layer, ngram_hashes,
+          CalculateMaxentHashIndices(net, sen.data(), target, ngram_hashes);
+      probs[wid] = exp(net->nce->CalculateWordLnScore(
+          output.row(target - 1), &net->maxent_layer, ngram_hashes,
           maxent_present, sen[target]));
     }
   }
@@ -713,14 +721,14 @@ void NextCandidates(NNet *nnet, std::string prefix) {
   {
     // Calcluate normalization constant
     double s = 0;
-    for (int wid = nnet->vocab.size(); wid-- > 0;) {
+    for (int wid = net->vocab.size(); wid-- > 0;) {
       // Sum in reverse order to improve accuracy
       s += probs[wid];
     }
 
     auto log10s = log10(s);
-    for (int wid = 0; wid < nnet->vocab.size(); ++wid) {
-      candidates.emplace_back(nnet->vocab.GetWordByIndex(wid),
+    for (int wid = 0; wid < net->vocab.size(); ++wid) {
+      candidates.emplace_back(net->vocab.GetWordByIndex(wid),
                               log10(probs[wid]) - log10s);
     }
     std::partial_sort(candidates.begin(), candidates.begin() + 10,
@@ -729,9 +737,9 @@ void NextCandidates(NNet *nnet, std::string prefix) {
         });
   }
 
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < num; ++i) {
     for (size_t i = 0; i < wids.size(); ++i) {
-      printf("%s ", nnet->vocab.GetWordByIndex(wids[i]));
+      printf("%s ", net->vocab.GetWordByIndex(wids[i]));
     }
     printf("| %s | %f\n", std::get<0>(candidates[i]).c_str(),
            std::get<1>(candidates[i]));
@@ -866,7 +874,7 @@ void SampleFromLM(NNet *nnet, int seed, int n_samples,
 
 std::vector<int> read_tree(std::string &tree_file) {
   std::vector<int> children;
-  if(!tree_file.empty()) {
+  if (!tree_file.empty()) {
     std::ifstream infile(tree_file);
     std::string line;
     while (std::getline(infile, line)) {
@@ -876,7 +884,104 @@ std::vector<int> read_tree(std::string &tree_file) {
   return children;
 }
 
-std::vector<int> read_tree(std::string &tree_file);
+void ScoreCandidates(MixtureNet &net, std::string &s) {
+  std::vector<std::string> input;
+  split(s, ':', std::back_inserter(input));
+  if (input.size() < 3) {
+    printf("expected <phrase>:<index>:<candidates>, but got %s", s.c_str());
+    exit(1);
+  }
+  auto idx = atoi(input[1].c_str());
+  std::vector<std::string> words;
+  split(input[0], ' ', std::back_inserter(words));
+  if (words.size() <= idx) {
+    printf("word index %d is out of range for string %s", input[1], input[0].c_str());
+    exit(1);
+  }
+
+  std::vector<std::string> targetWords;
+  std::copy(input.begin() + 2, input.end(), std::back_inserter(targetWords));
+
+  printf("Format: [sentence] | [prob of word at pos %d] | prob of phrase\n\n", idx);
+
+  std::string currWord = words[idx];
+  auto wids = net.GetWids(input[0]);
+  auto wordProb = net.Log10WordProbability(wids, idx, &currWord);
+  auto phraseProb = net.Log10PhraseProbability(input[0]);
+  printf("Original: %s | %f | %f\n", input[0].c_str(),
+         net.Log10WordProbability(wids, idx, &currWord), net.Log10PhraseProbability(input[0]));
+
+  const auto &vocab = net.GetVocabulary();
+  std::vector<std::tuple<std::string, Real, Real>> targetCandidates;
+  std::vector<WordIndex> sen = wids;
+
+  for (auto &c : targetWords) {
+    sen[idx] = vocab.GetIndexByWord(c.c_str());
+    if (sen[idx]==Vocabulary::kWordOOV) {
+      sen[idx] = vocab.GetIndexByWord("<unk>");
+    }
+
+    std::string target_str;
+    for (int i = 0; i < words.size(); i++) {
+      if(i != 0) target_str += " ";
+      target_str += i==idx ? c : words[i];
+    }
+    auto wordProb = net.Log10WordProbability(sen, idx, &c);
+    auto phraseProb = net.Log10PhraseProbability(target_str);
+    targetCandidates.emplace_back(c, wordProb, phraseProb);
+  }
+
+  std::sort(targetCandidates.begin(), targetCandidates.end(), [](auto &a, auto &b) {
+    return std::get<1>(a) > std::get<1>(b);
+  });
+
+  for (auto c : targetCandidates) {
+    printf("Target candidate: %s | %f | %f\n", std::get<0>(c).c_str(), std::get<1>(c), std::get<2>(c));
+  }
+}
+
+void StartConsole(MixtureNet net) {
+  using namespace std::chrono;
+
+  printf("Console mode\n");
+  std::string line;
+  while (true) {
+    printf("Commands: \n");
+    printf("top|[sentence]:[word index]:[other words to score separated by :]\n");
+    printf("diverse|[sentence]:[word index]:[threshold]:[num]\n");
+    printf("next|[sentence]:num\n");
+    printf("score|[sentence]:[word index]:[candidates separated by :]\n");
+    printf("exit\n");
+    printf("> ");
+    std::getline(std::cin, line);
+    std::vector<std::string> v;
+    split(line, '|', std::back_inserter(v));
+    if (v.size()==0) {
+      printf("Please enter a command\n");
+      continue;
+    }
+    if (v.size() > 2) {
+      printf("Expected 1 pipe char (|) but got %d\n", v.size() - 1);
+      continue;
+    }
+    printf("\n");
+    high_resolution_clock::time_point start = high_resolution_clock::now();
+    if (v[0]=="exit") exit(0);
+    else if (v[0]=="top") {
+      TopCandidates(net, v[1]);
+    } else if (v[0]=="diverse") {
+      DiverseCandidates(net, v[1]);
+    } else if (v[0]=="next") {
+      NextCandidates(net.GetForwardNet(), v[1]);
+    } else if (v[0]=="score") {
+      ScoreCandidates(net, v[1]);
+    }
+    high_resolution_clock::time_point end = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(end - start).count();
+    std::cout << "Time taken: " << duration << "ms" << std::endl << std::endl;
+  }
+}
+
 int main(int argc, char **argv) {
 #ifdef DETECT_FPE
   feenableexcept(FE_ALL_EXCEPT & ~FE_INEXACT & ~FE_UNDERFLOW);
@@ -891,7 +996,7 @@ int main(int argc, char **argv) {
   bool use_cuda = kHaveCudaSupport;
   bool use_cuda_memory_efficient = false;
   bool reverse_sentence = false, create = false, create_rev = false;
-  bool show_progress = true, show_train_entropy = false;
+  bool show_progress = true, show_train_entropy = false, console = false;
   int n_threads = 1;
   int n_inner_epochs = 1;
   bool nce_accurate_test = false;
@@ -912,6 +1017,7 @@ int main(int argc, char **argv) {
   opts.Add("generate-temperature",
            "Softmax temperature (use lower values to get robuster results)",
            &generate_temperature);
+  opts.Add("console", "Start testing console", &console);
   opts.Add("hidden", "Size of embedding and hidden layers", &layer_size);
   opts.Add(
       "hidden-count",
@@ -1057,7 +1163,7 @@ int main(int argc, char **argv) {
   }
   if (test_file.empty() && train_file.empty() && n_samples==0 &&
       complete_phrase.empty() && diverse_candidates.empty() &&
-      top_candidates.empty() && dump_embeddings_file.empty()) {
+      top_candidates.empty() && dump_embeddings_file.empty() && !console) {
     fprintf(stderr, "ERROR you must provide either train file or test file or "
         "phrase to complete or replacement candidates\n");
     return 1;
@@ -1200,6 +1306,8 @@ int main(int argc, char **argv) {
     TopCandidates(mn, top_candidates);
   } else if (!dump_embeddings_file.empty()) {
     main_nnet->dump_embeddings(dump_embeddings_file);
+  } else if (console) {
+    StartConsole(mn);
   } else {
     // Train mode
     TrainLM(model_weight_file, train_file, valid_file, show_progress,
