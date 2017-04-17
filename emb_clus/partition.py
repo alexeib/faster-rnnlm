@@ -1,5 +1,6 @@
 import argparse
 from sklearn.mixture import GaussianMixture
+from collections import deque
 
 from Vocab import Vocab
 from CharEmbeddings import CharEmbeddings
@@ -14,28 +15,40 @@ def emb_retriever(char_embeddings):
     return embedding
 
 
-def partition(entries, covariance_type, max_iter, get_embedding, n_comp=2):
-    mixture = GaussianMixture(n_components=n_comp, covariance_type=covariance_type, max_iter=max_iter, n_init=1)
+def partition(entries, covariance_type, max_iter, get_embedding, max_cluster_weight_perc):
+    mixture = GaussianMixture(n_components=2, covariance_type=covariance_type, max_iter=max_iter, n_init=1)
     data = [get_embedding(x) for x in entries]
     mixture.fit(data)
-    partitions = [[] for _ in range(n_comp)]
+    total_weight = sum([x.freq for x in entries])
+    scored = []
     for x in entries:
         inp = get_embedding(x).reshape(1, -1)
-        partitions[mixture.predict(inp)[0]].append(x)
+        probs = mixture.predict_proba(inp)
+        scored.append((x, probs[0][0], probs[0][1]))
 
-    empty = next((p for p in partitions if len(p) == 0), None)
-    if empty is not None:
-        source = next((p for p in partitions if len(p) > 1), None)
-        if source is not None:
-            empty.append(source.pop())
+    scored.sort(key=lambda x: x[1])
+    p1 = []
+    p1_weight = 0
+    while len(scored) > 1:
+        prob_1 = scored[-1][1]
+        prob_2 = scored[-1][2]
+        w_1 = (p1_weight + scored[-1][0].freq) / total_weight
+        w_2 = 1 - w_1 + (scored[-1][0].freq / total_weight)
+        if len(p1) > 0 and (
+                    (w_1 > max_cluster_weight_perc > w_2) or (prob_2 > prob_1 and w_2 < max_cluster_weight_perc)):
+            break
+        p1.append(scored.pop()[0])
+        p1_weight += p1[-1].freq
+    p2 = [x[0] for x in scored]
 
-    return partitions
+    return [p1, p2]
 
 
 print_idx = 0
 
 
-def rec_partition(children, node_start, entries, covariance_type, max_iter, get_embedding, level, n_comp=2):
+def rec_partition(children, node_start, entries, covariance_type, max_iter, get_embedding, max_cluster_weight_perc,
+                  level):
     if len(entries) == 0:
         raise Exception('must have more than 0 entries')
     if len(entries) == 1:
@@ -47,20 +60,25 @@ def rec_partition(children, node_start, entries, covariance_type, max_iter, get_
             print([e.word for e in entries])
         children += [e.index for e in entries]
     else:
-        ps = partition(entries, covariance_type, max_iter, get_embedding, n_comp)
+        ps = partition(entries, covariance_type, max_iter, get_embedding, max_cluster_weight_perc)
         if level < 4:
             len1 = len(ps[0])
             freq1 = sum([w.freq for w in ps[0]])
             freq2 = sum([w.freq for w in ps[1]])
+            freq_sum = freq1 + freq2
+            freq1 = freq1 / freq_sum
+            freq2 = freq2 / freq_sum
             len2 = len(ps[1])
             total = len1 + len2
-            len1Ratio = len1 / total
-            len2Ratio = len2 / total
+            len1_ratio = len1 / total
+            len2_ratio = len2 / total
             print(
-                "Partitioned at level {level}: {len1} ({len1Ratio:.2%}, freq: {freq1:.4%}) / {len2} ({len2Ratio:.2%}, freq: {freq2:.4%})".format(
+                "Partitioned at level {level}: {len1} ({len1_ratio:.2%}, freq: {freq1:.4%}) / {len2} ({len2_ratio:.2%}, freq: {freq2:.4%})".format(
                     **locals()))
-        c1 = rec_partition(children, node_start, ps[0], covariance_type, max_iter, get_embedding, level + 1, n_comp)
-        c2 = rec_partition(children, node_start, ps[1], covariance_type, max_iter, get_embedding, level + 1, n_comp)
+        c1 = rec_partition(children, node_start, ps[0], covariance_type, max_iter, get_embedding,
+                           max_cluster_weight_perc, level + 1)
+        c2 = rec_partition(children, node_start, ps[1], covariance_type, max_iter, get_embedding,
+                           max_cluster_weight_perc, level + 1)
         children += [c1, c2]
     node_id = node_start + (len(children) // 2) - 1
     c1 = (node_id - node_start) * 2
@@ -86,6 +104,8 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--covariance_type', default='spherical', choices=['spherical', 'tied', 'diag', 'full'],
                         help='Type of covariance to use')
     parser.add_argument('-m', '--max_iter', type=int, default=10, help="number of max iterations for EM")
+    parser.add_argument('-w', '--max_cluster_weight_perc', type=float, default=1,
+                        help="maximum weight percentage that a cluster may take. should be > 0 and <= 1")
     parser.add_argument('-c', '--char_embedding_file', default=None,
                         help="path to char embeddings. if this is provided, partitioning is done only by char embeddings (input is used as vocab)")
     args = parser.parse_args()
@@ -95,7 +115,7 @@ if __name__ == '__main__':
     get_embedding = emb_retriever(char_embeddings)
     children = []
     root = rec_partition(children, len(vocab.entries), vocab.entries.values(), args.covariance_type, args.max_iter,
-                         get_embedding, 0)
+                         get_embedding, args.max_cluster_weight_perc, 0)
     print("root is ", root)
     print("children len is ", len(children))
     write(children, args.output)
