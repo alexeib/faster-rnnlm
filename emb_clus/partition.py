@@ -50,10 +50,15 @@ def rec_partition(children, node_start, entries, covariance_type, max_iter, get_
         ps = partition(entries, covariance_type, max_iter, get_embedding, n_comp)
         if level < 4:
             len1 = len(ps[0])
+            freq1 = sum([w.freq for w in ps[0]])
+            freq2 = sum([w.freq for w in ps[1]])
             len2 = len(ps[1])
             total = len1 + len2
-            print("Partitioned at level {}: {} ({:.2%}) / {} ({:.2%})".format(level, len1, len1 / total, len2,
-                                                                            len2 / total))
+            len1Ratio = len1 / total
+            len2Ratio = len2 / total
+            print(
+                "Partitioned at level {level}: {len1} ({len1Ratio:.2%}, freq: {freq1:.4%}) / {len2} ({len2Ratio:.2%}, freq: {freq2:.4%})".format(
+                    **locals()))
         c1 = rec_partition(children, node_start, ps[0], covariance_type, max_iter, get_embedding, level + 1, n_comp)
         c2 = rec_partition(children, node_start, ps[1], covariance_type, max_iter, get_embedding, level + 1, n_comp)
         children += [c1, c2]

@@ -1,5 +1,6 @@
 #include "faster-rnnlm/nnet.h"
 
+#include <inttypes.h>
 #include <algorithm>
 #include <cmath>
 
@@ -220,7 +221,7 @@ void NNet::ReLoad(const std::string &model_file) {
 void NNet::dump_embeddings(const std::string &target_file) const {
   FILE *file = fopen(target_file.c_str(), "w");
   for (int i = 0; i < vocab.size(); i++) {
-    fprintf(file, "%s", vocab.GetWordByIndex(i));
+    fprintf(file, "%s\t%" PRId64, vocab.GetWordByIndex(i), vocab.GetWordFrequency(i));
     for (int j = 0; j < embeddings.cols(); j++) {
       fprintf(file, "\t%.17g", embeddings.row(i).data()[j]);
     }
