@@ -15,7 +15,7 @@ def emb_retriever(char_embeddings):
 
 
 def partition(entries, covariance_type, max_iter, get_embedding, n_comp=2):
-    mixture = GaussianMixture(n_components=n_comp, covariance_type=covariance_type, max_iter=max_iter, n_init=3)
+    mixture = GaussianMixture(n_components=n_comp, covariance_type=covariance_type, max_iter=max_iter, n_init=1)
     data = [get_embedding(x) for x in entries]
     mixture.fit(data)
     partitions = [[] for _ in range(n_comp)]
@@ -35,7 +35,7 @@ def partition(entries, covariance_type, max_iter, get_embedding, n_comp=2):
 print_idx = 0
 
 
-def rec_partition(children, node_start, entries, covariance_type, max_iter, get_embedding, n_comp=2):
+def rec_partition(children, node_start, entries, covariance_type, max_iter, get_embedding, level, n_comp=2):
     if len(entries) == 0:
         raise Exception('must have more than 0 entries')
     if len(entries) == 1:
@@ -48,8 +48,14 @@ def rec_partition(children, node_start, entries, covariance_type, max_iter, get_
         children += [e.index for e in entries]
     else:
         ps = partition(entries, covariance_type, max_iter, get_embedding, n_comp)
-        c1 = rec_partition(children, node_start, ps[0], covariance_type, max_iter, get_embedding, n_comp)
-        c2 = rec_partition(children, node_start, ps[1], covariance_type, max_iter, get_embedding, n_comp)
+        if level < 4:
+            len1 = len(ps[0])
+            len2 = len(ps[1])
+            total = len1 + len2
+            print("Partitioned at level {}: {} ({:.2%}) / {} ({:.2%})".format(level, len1, len1 / total, len2,
+                                                                            len2 / total))
+        c1 = rec_partition(children, node_start, ps[0], covariance_type, max_iter, get_embedding, level + 1, n_comp)
+        c2 = rec_partition(children, node_start, ps[1], covariance_type, max_iter, get_embedding, level + 1, n_comp)
         children += [c1, c2]
     node_id = node_start + (len(children) // 2) - 1
     c1 = (node_id - node_start) * 2
@@ -84,7 +90,7 @@ if __name__ == '__main__':
     get_embedding = emb_retriever(char_embeddings)
     children = []
     root = rec_partition(children, len(vocab.entries), vocab.entries.values(), args.covariance_type, args.max_iter,
-                         get_embedding)
+                         get_embedding, 0)
     print("root is ", root)
     print("children len is ", len(children))
     write(children, args.output)
