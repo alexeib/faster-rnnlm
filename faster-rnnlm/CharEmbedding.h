@@ -65,9 +65,7 @@ class SquashedLm1bCharEmbedding : public CharEmbedding {
 
 class CharEmbeddingFactory {
  public:
-  static std::shared_ptr<CharEmbedding> create() {
-    return std::shared_ptr<CharEmbedding>(new SquashedLm1bCharEmbedding());
-  }
+  static std::shared_ptr<CharEmbedding> create(bool enable);
 };
 
 #endif //FASTER_RNNLM_CHAREMBEDDING_H

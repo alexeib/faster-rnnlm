@@ -97,15 +97,15 @@ Tree::Tree(int leaf_count, const vector<int> &children, int arity)
 
 // Finish construction of HSTree given constructed children array
 HSTree::HSTree(const Vocabulary &vocab, int layer_size,
-               CharEmbedding &char_embedding, int arity,
+               std::shared_ptr<CharEmbedding> char_embedding, int arity,
                const vector<int> &children)
     : vocab_(vocab), layer_size(layer_size),
       syn_size(static_cast<size_t>(layer_size)*vocab.size()),
       char_embedding_(char_embedding),
-      weights_(vocab.size(), layer_size + char_embedding.size() + kUseBias),
+      weights_(vocab.size(), layer_size + char_embedding->size() + kUseBias),
       tree_(new Tree(vocab.size(), children, arity)) {
   if (layer_size) {
-    InitNormal(1./std::sqrt(layer_size + char_embedding.size()), &weights_);
+    InitNormal(1./std::sqrt(layer_size + char_embedding->size()), &weights_);
   }
 
   fprintf(stderr, "Contructed HS: arity=%d, height=%d\n", tree_->GetArity(),
@@ -113,7 +113,7 @@ HSTree::HSTree(const Vocabulary &vocab, int layer_size,
 }
 
 HSTree *HSTree::CreateHuffmanTree(const Vocabulary &vocab, int layer_size,
-                                  CharEmbedding &char_embedding, int arity) {
+                                  std::shared_ptr<CharEmbedding> char_embedding, int arity) {
   const int extra_node_count = (vocab.size() - 1)/(arity - 1);
   const int node_count = vocab.size() + extra_node_count;
   vector<int64_t> weight(node_count + 2);
@@ -158,14 +158,14 @@ HSTree *HSTree::CreateHuffmanTree(const Vocabulary &vocab, int layer_size,
 
 HSTree *HSTree::CreateExistingTree(const Vocabulary &vocab,
                                    int layer_size,
-                                   CharEmbedding &char_embedding,
+                                   std::shared_ptr<CharEmbedding> char_embedding,
                                    int arity,
                                    std::vector<int> &tree_children) {
   return new HSTree(vocab, layer_size, char_embedding, arity, tree_children);
 }
 
 HSTree *HSTree::CreateRandomTree(const Vocabulary &vocab, int layer_size,
-                                 CharEmbedding &char_embedding, int arity,
+                                 std::shared_ptr<CharEmbedding> char_embedding, int arity,
                                  uint64_t seed) {
   const int extra_node_count = (vocab.size() - 1)/(arity - 1);
   vector<int> children(extra_node_count*arity);
@@ -227,8 +227,8 @@ CalculateNodeChildrenScores(const HSTree *hs, int node, const Real *hidden,
     for (int i = 0; i < hs->layer_size; ++i) {
       branch_scores[branch] += hidden[i]*sm_embedding[i];
     }
-    auto char_embedding = hs->char_embedding_.get_embedding(curr_chars);
-    for (int i = 0; i < hs->char_embedding_.size(); ++i) {
+    auto char_embedding = hs->char_embedding_->get_embedding(curr_chars);
+    for (int i = 0; i < hs->char_embedding_->size(); ++i) {
       branch_scores[branch] +=
           char_embedding[i]*sm_embedding[i + hs->layer_size];
     }
@@ -238,7 +238,7 @@ CalculateNodeChildrenScores(const HSTree *hs, int node, const Real *hidden,
     }
 
     for (int i = 0; i < kUseBias; ++i) {
-      branch_scores[branch] += sm_embedding[hs->char_embedding_.size() + hs->layer_size + i];
+      branch_scores[branch] += sm_embedding[hs->char_embedding_->size() + hs->layer_size + i];
     }
   }
 }
@@ -367,8 +367,8 @@ inline void PropagateNodeBackward(HSTree *hs, WordIndex target_word, int depth,
 
     // Learn weights char emb -> output
     auto word = std::string(hs->vocab_.GetWordByIndex(target_word));
-    auto char_emb = hs->char_embedding_.get_embedding(word);
-    for (int i = 0; i < hs->char_embedding_.size(); ++i) {
+    auto char_emb = hs->char_embedding_->get_embedding(word);
+    for (int i = 0; i < hs->char_embedding_->size(); ++i) {
       Real update = grad*char_emb[i];
       sm_embedding[i + hs->layer_size] *= (1 - l2reg);
       sm_embedding[i + hs->layer_size] +=
@@ -377,7 +377,7 @@ inline void PropagateNodeBackward(HSTree *hs, WordIndex target_word, int depth,
 
     for (int i = 0; i < kUseBias; ++i) {
       Real update = grad;
-      sm_embedding[hs->char_embedding_.size() + hs->layer_size + i] +=
+      sm_embedding[hs->char_embedding_->size() + hs->layer_size + i] +=
           lrate*Clip(update, gradient_clipping);
     }
 

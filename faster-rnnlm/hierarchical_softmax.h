@@ -92,16 +92,16 @@ class HSTree {
  public:
   // Factory function to build k-ary Huffman tree_ using the word counts
   // Frequent words will have short unique k-nary codes
-  static HSTree *CreateHuffmanTree(const Vocabulary &, int layer_size, CharEmbedding &char_embedding, int arity);
+  static HSTree *CreateHuffmanTree(const Vocabulary &, int layer_size, std::shared_ptr<CharEmbedding> char_embedding, int arity);
 
   static HSTree *CreateExistingTree(const Vocabulary &,
                                     int layer_size,
-                                    CharEmbedding &char_embedding,
+                                    std::shared_ptr<CharEmbedding> char_embedding,
                                     int arity,
                                     std::vector<int> &tree_children);
 
   static HSTree *
-  CreateRandomTree(const Vocabulary &, int layer_size, CharEmbedding &char_embedding, int arity, uint64_t seed);
+  CreateRandomTree(const Vocabulary &, int layer_size, std::shared_ptr<CharEmbedding> char_embedding, int arity, uint64_t seed);
 
   ~HSTree();
 
@@ -176,13 +176,13 @@ class HSTree {
   const size_t syn_size;
   RowMatrix weights_;
   Tree *tree_;
-  CharEmbedding &char_embedding_;
+  std::shared_ptr<CharEmbedding> char_embedding_;
   const Vocabulary &vocab_;
 
  protected:
   HSTree(const Vocabulary &vocab,
          int layer_size,
-         CharEmbedding &char_embedding,
+         std::shared_ptr<CharEmbedding> char_embedding,
          int arity,
          const std::vector<int> &children);
 

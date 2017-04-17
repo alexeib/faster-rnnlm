@@ -32,7 +32,7 @@ struct NNetConfig {
   int hs_arity;
 
   std::string layer_type;
-  std::shared_ptr<CharEmbedding> char_embedding;
+  bool enable_char_emb;
 };
 
 struct NNet {

@@ -10,7 +10,7 @@
 
 namespace {
 const uint64_t kVersionStepSize = 10000;
-const int kCurrentVersion = 6;
+const int kCurrentVersion = 7;
 const unsigned kMaxLayerTypeName = 64;  // maximum size of layer name type in bytes (including \0)
 const std::string kDefaultLayerType = "sigmoid";
 };  // unnamed namespace
@@ -45,6 +45,9 @@ static void ReadHeader(FILE *file, NNetConfig *cfg, int *version_ptr) {
   if (version >= 3) {
     FreadAllOrDie(&cfg->reverse_sentence, sizeof(bool), 1, file, error_message);
   }
+  if (version >= 7) {
+    FreadAllOrDie(&cfg->enable_char_emb, sizeof(bool), 1, file, error_message);
+  }
 
   cfg->layer_type = kDefaultLayerType;
   if (version >= 4) {
@@ -65,23 +68,23 @@ static void ReadHeader(FILE *file, NNetConfig *cfg, int *version_ptr) {
 }
 
 static NNetConfig ReadConfig(const std::string &model_file) {
+  int version;
   FILE *file = fopen(model_file.c_str(), "rb");
   NNetConfig cfg;
-  int version;
   ReadHeader(file, &cfg, &version);
   fclose(file);
   return cfg;
 }
 
 NNet::NNet(const Vocabulary &vocab, const NNetConfig &cfg, bool use_cuda,
-           bool use_cuda_memory_efficient, std::vector<int>& tree_children)
+           bool use_cuda_memory_efficient, std::vector<int> &tree_children)
     : cfg(cfg), vocab(vocab), rec_layer(NULL), nce(NULL), use_cuda(use_cuda),
       use_cuda_memory_efficient(use_cuda_memory_efficient) {
   Init(tree_children);
 }
 
 NNet::NNet(const Vocabulary &vocab, const std::string &model_file, bool use_cuda,
-           bool use_cuda_memory_efficient, std::vector<int>& tree_children)
+           bool use_cuda_memory_efficient, std::vector<int> &tree_children)
     : cfg(ReadConfig(model_file)), vocab(vocab), rec_layer(NULL), nce(NULL), use_cuda(use_cuda),
       use_cuda_memory_efficient(use_cuda_memory_efficient) {
   Init(tree_children);
@@ -97,7 +100,7 @@ NNet::~NNet() {
   }
 }
 
-void NNet::Init(std::vector<int>& tree_children) {
+void NNet::Init(std::vector<int> &tree_children) {
   if (cfg.layer_type.size() + 1 > kMaxLayerTypeName) {
     fprintf(stderr, "ERROR layer type name must be less then %d\n", kMaxLayerTypeName);
     exit(1);
@@ -126,14 +129,12 @@ void NNet::Init(std::vector<int>& tree_children) {
     nce = new NCE(use_cuda, use_cuda_memory_efficient,
                   cfg.nce_lnz, cfg.layer_size, vocab, cfg.maxent_hash_size);
   } else {
-    if (!cfg.char_embedding) {
-      cfg.char_embedding = CharEmbeddingFactory::create();
-    }
-    if(tree_children.empty()) {
-      softmax_layer = HSTree::CreateHuffmanTree(vocab, cfg.layer_size, *cfg.char_embedding, cfg.hs_arity);
-    }
-    else {
-      softmax_layer = HSTree::CreateExistingTree(vocab, cfg.layer_size, *cfg.char_embedding, cfg.hs_arity, tree_children);
+    auto char_embedding = CharEmbeddingFactory::create(cfg.enable_char_emb);
+    if (tree_children.empty()) {
+      softmax_layer = HSTree::CreateHuffmanTree(vocab, cfg.layer_size, char_embedding, cfg.hs_arity);
+    } else {
+      softmax_layer =
+          HSTree::CreateExistingTree(vocab, cfg.layer_size, char_embedding, cfg.hs_arity, tree_children);
     }
     //softmax_layer = HSTree::CreateRandomTree(vocab, cfg.layer_size, *cfg.char_embedding, cfg.hs_arity, 0);
 
@@ -147,7 +148,7 @@ void NNet::ApplyDiagonalInitialization(Real alpha) {
 void NNet::Save(const std::string &model_file) const {
   if (
       !cfg.use_nce && !cfg.reverse_sentence && cfg.hs_arity==2 &&
-          cfg.layer_type==kDefaultLayerType && cfg.layer_count==1) {
+          cfg.layer_type==kDefaultLayerType && cfg.layer_count==1 && !cfg.enable_char_emb && false) {
     return SaveCompatible(model_file);
   }
 
@@ -162,6 +163,7 @@ void NNet::Save(const std::string &model_file) const {
   fwrite(&cfg.nce_lnz, sizeof(Real), 1, file);
 
   fwrite(&cfg.reverse_sentence, sizeof(bool), 1, file);
+  fwrite(&cfg.enable_char_emb, sizeof(bool), 1, file);
   {
     char buffer[kMaxLayerTypeName] = {0};
     strncpy(buffer, cfg.layer_type.c_str(), kMaxLayerTypeName - 1);
@@ -219,7 +221,7 @@ void NNet::dump_embeddings(const std::string &target_file) const {
   FILE *file = fopen(target_file.c_str(), "w");
   for (int i = 0; i < vocab.size(); i++) {
     fprintf(file, "%s", vocab.GetWordByIndex(i));
-    for(int j = 0;j<embeddings.cols();j++) {
+    for (int j = 0; j < embeddings.cols(); j++) {
       fprintf(file, "\t%.17g", embeddings.row(i).data()[j]);
     }
     fprintf(file, "\n");

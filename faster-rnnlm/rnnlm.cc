@@ -993,7 +993,7 @@ int main(int argc, char **argv) {
       complete_phrase, diverse_candidates, top_candidates, dump_embeddings_file, tree_file;
   bool use_cuda = kHaveCudaSupport;
   bool use_cuda_memory_efficient = false;
-  bool reverse_sentence = false, create = false, create_rev = false;
+  bool reverse_sentence = false, create = false, create_rev = false, enable_char_emb = false;
   bool show_progress = true, show_train_entropy = false, console = false;
   int n_threads = 1;
   int n_inner_epochs = 1;
@@ -1024,6 +1024,7 @@ int main(int argc, char **argv) {
   opts.Add("hidden-type", "Hidden layer activation (sigmoid, tanh, relu, gru, "
                "gru-bias, gru-insyn, gru-full)",
            &layer_type);
+  opts.Add("enable-char-emb", "Enable char embeddings", &enable_char_emb);
   opts.Add("arity", "Arity of the HS tree", &hs_arity);
   opts.Add("direct", "Size of maxent layer in millions", &maxent_hash_size);
   opts.Add("direct-order", "Maximum order of ngram features", &maxent_order);
@@ -1246,7 +1247,7 @@ int main(int argc, char **argv) {
         reverse_sentence,
         hs_arity,
         layer_type,
-        CharEmbeddingFactory::create()};
+        enable_char_emb};
     main_nnet = new NNet(vocab, cfg, use_cuda, use_cuda_memory_efficient, tree_children);
 
     if (create_rev) {
@@ -1260,7 +1261,7 @@ int main(int argc, char **argv) {
           !reverse_sentence,
           hs_arity,
           layer_type,
-          CharEmbeddingFactory::create()};
+          enable_char_emb};
       rev_nnet = new NNet(vocab, cfg_rev, use_cuda, use_cuda_memory_efficient, tree_children);
     }
 
