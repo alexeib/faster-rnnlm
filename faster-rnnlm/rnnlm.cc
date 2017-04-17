@@ -907,7 +907,7 @@ void ScoreCandidates(MixtureNet &net, std::string &s) {
   std::string currWord = words[idx];
   auto wids = net.GetWids(input[0]);
   printf("Original: %s | %f | %f\n", input[0].c_str(),
-         net.Log10WordProbability(wids, idx, &currWord), net.Log10PhraseProbability(input[0], input[0]));
+         net.Log10WordProbability(wids, idx, &currWord), net.Log10PhraseProbability(input[0]));
 
   const auto &vocab = net.GetVocabulary();
   std::vector<std::tuple<std::string, Real, Real>> targetCandidates;
@@ -925,7 +925,7 @@ void ScoreCandidates(MixtureNet &net, std::string &s) {
       target_str += i==idx ? c : words[i];
     }
     auto wordProb = net.Log10WordProbability(sen, idx, &currWord);
-    auto phraseProb = net.Log10PhraseProbability(target_str, input[0]);
+    auto phraseProb = net.Log10PhraseProbability(target_str);
     targetCandidates.emplace_back(c, wordProb, phraseProb);
   }
 

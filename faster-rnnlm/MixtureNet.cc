@@ -53,24 +53,17 @@ Real MixtureNet::Log10WordProbability(const std::string &sentence, int wordPos) 
   return Log10WordProbability(wids, wordPos);
 }
 
-Real MixtureNet::Log10PhraseProbability(const std::string &sentence, const std::string &given) {
+Real MixtureNet::Log10PhraseProbability(const std::string &sentence) {
   std::vector<std::string> words;
-  std::vector<std::string> given_words;
   split(sentence, ' ', std::back_inserter(words));
-  split(given, ' ', std::back_inserter(given_words));
   auto wids = GetWids(sentence);
   if (words.size()!=wids.size()) {
     printf("words size %d != wids size %d !!\n", words.size(), wids.size());
     return 0;
   }
-  if (words.size()!=given_words.size()) {
-    printf("scoring number of words %d is not the same as given number of words %d. TODO support this",
-           words.size(),
-           given_words.size());
-  }
   Real prob = 0;
   for (int i = 0; i < words.size(); i++) {
-    prob += Log10WordProbability(wids, i, &given_words[i]);
+    prob += Log10WordProbability(wids, i, &words[i]);
   }
   return prob;
 }

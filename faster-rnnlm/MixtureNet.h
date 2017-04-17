@@ -28,7 +28,7 @@ class MixtureNet {
 
   Real Log10WordProbability(const std::vector<WordIndex> &wids, int wordPos, std::string *currWord = nullptr);
 
-  Real Log10PhraseProbability(const std::string &sentence, const std::string& given);
+  Real Log10PhraseProbability(const std::string &sentence);
 
   const Tree *GetHSTree() const { return forward_.nnet->softmax_layer->GetTree(); }
 
